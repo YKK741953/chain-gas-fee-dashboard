@@ -119,11 +119,26 @@ async def test_fees_html_view(client):
                 side_effect=make_rpc_handler(slug, "0x3b9aca00", "0x77359400")
             )
 
+        mock.get("https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest").mock(
+            return_value=Response(
+                200,
+                json={
+                    "data": {
+                        "ETH": {"quote": {"JPY": {"price": 300000.0}}},
+                        "POL": {"quote": {"JPY": {"price": 120.0}}},
+                        "AVAX": {"quote": {"JPY": {"price": 4500.0}}},
+                    }
+                },
+            )
+        )
+
         response = await client.get("/fees/?format=html", headers={"accept": "text/html"})
 
     assert response.status_code == 200
     assert "text/html" in response.headers["content-type"]
     assert "Gas Fee Snapshot" in response.text
+    assert "法定通貨: JPY" in response.text
+    assert "toggle" in response.text
 
 
 @pytest.mark.asyncio
@@ -280,6 +295,7 @@ async def test_fees_endpoint_with_fiat_currency(client):
     assert response.status_code == 200
     payload = response.json()
     assert payload["meta"]["fiat_currency"] == "USD"
+    assert payload["meta"]["fiat_requested"] == "USD"
     ethereum_row = next(row for row in payload["data"] if row["chain"]["key"] == "ethereum")
     assert ethereum_row["fiat_fee"]["formatted"] == "0.1260"
     # Ensure fallback symbol uses ETH for arbitrum/optimism/linea

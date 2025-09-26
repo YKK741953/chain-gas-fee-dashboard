@@ -64,4 +64,4 @@ The frontend reads `VITE_API_BASE_URL`; if unset, it calls `/api` and relies on 
 - Optimism: `eth_estimateGas` と `eth_gasPrice` に加え、GasPriceOracle `getL1Fee` で L1 データ料を取得し合算します。
 - Arbitrum: `eth_estimateGas` の結果に L1 バッファが含まれるため、`gasPrice * estimatedGas` が総コストです。
 - Linea: `linea_estimateGas` が利用可能なら優先し、EIP-1559 価格で乗算します。
-  追加で `fiat` クエリパラメータ（`usd` / `jpy`）を指定すると、CoinMarketCap API から取得したレートで換算した法定通貨建て手数料もレスポンスに含まれます。
+  HTML ビューではデフォルトで JPY 換算が有効になっており、トグルから USD / JPY を切り替えられます。API 側も `fiat=usd|jpy` 指定で CoinMarketCap 由来の法定通貨建て手数料を含みます。

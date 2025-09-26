@@ -97,8 +97,18 @@ async def list_fees(
     jobs = [get_chain_fee(client, chain, precise=precise) for chain in chains]
     results = await asyncio.gather(*jobs)
 
-    fiat_currency = fiat or request.query_params.get("fiat")
-    fiat_currency = fiat_currency.lower() if fiat_currency else None
+    raw_fiat = fiat or request.query_params.get("fiat")
+    fiat_currency = raw_fiat.lower() if raw_fiat else None
+
+    wants_html = (
+        format == "html"
+        or "text/html" in request.headers.get("accept", "")
+        or request.query_params.get("format") == "html"
+    )
+
+    if wants_html and not fiat_currency:
+        fiat_currency = "jpy"
+
     if fiat_currency and fiat_currency not in {"usd", "jpy"}:
         raise HTTPException(status_code=400, detail="Unsupported fiat currency")
 
@@ -127,13 +137,8 @@ async def list_fees(
             meta["fiat_currency"] = fiat_upper
             meta["fiat_price_source"] = "coinmarketcap"
 
-    wants_html = (
-        format == "html"
-        or "text/html" in request.headers.get("accept", "")
-        or request.query_params.get("format") == "html"
-    )
-
     if wants_html:
+        active_fiat = meta.get("fiat_currency") or meta.get("fiat_requested")
         return templates.TemplateResponse(
             request=request,
             name="fees.html",
@@ -142,6 +147,7 @@ async def list_fees(
                 "rows": results,
                 "meta": meta,
                 "fiat_currency": meta.get("fiat_currency"),
+                "active_fiat": active_fiat,
                 "fiat_error": meta.get("fiat_error"),
             },
         )
