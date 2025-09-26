@@ -40,6 +40,8 @@ class FeeSnapshot:
     def as_payload(self) -> Dict[str, Any]:
         gas_price_gwei = Decimal(self.data.gas_price_wei) / NANO
         native_fee = Decimal(self.data.native_fee_wei) / WEI
+        erc20_fee_wei = self.data.gas_price_wei * self.chain.erc20_gas_limit
+        erc20_fee_native = Decimal(erc20_fee_wei) / WEI
         return {
             "chain": {
                 "key": self.chain.key,
@@ -55,6 +57,14 @@ class FeeSnapshot:
             "native_fee": {
                 "wei": self.data.native_fee_wei,
                 "formatted": _format_decimal(native_fee, 8),
+            },
+            "erc20": {
+                "gas_limit": self.chain.erc20_gas_limit,
+                "token_symbol": self.chain.erc20_token_symbol,
+                "fee": {
+                    "wei": erc20_fee_wei,
+                    "formatted": _format_decimal(erc20_fee_native, 8),
+                },
             },
             "fetched_at": int(self.fetched_at),
             "mode": self.data.mode,
@@ -314,6 +324,11 @@ def _error_payload(chain: ChainSettings, message: str) -> Dict[str, Any]:
             "chain_id": chain.chain_id,
         },
         "error": message,
+        "erc20": {
+            "gas_limit": chain.erc20_gas_limit,
+            "token_symbol": chain.erc20_token_symbol,
+            "fee": {"wei": None, "formatted": None},
+        },
     }
 
 

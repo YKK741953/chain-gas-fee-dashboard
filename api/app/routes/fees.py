@@ -81,6 +81,20 @@ def _attach_fiat_prices(
             "formatted": _format_decimal_value(price, price_digits),
             "price_symbol": symbol_key,
         }
+        erc20 = row.get("erc20") or {}
+        erc20_fee = erc20.get("fee", {})
+        erc20_wei = erc20_fee.get("wei")
+        if erc20_wei is None:
+            row["erc20_fiat_fee"] = None
+        else:
+            erc20_native_amount = Decimal(erc20_wei) / _WEI_DECIMAL
+            erc20_fiat_value = erc20_native_amount * price
+            row["erc20_fiat_fee"] = {
+                "currency": currency_upper,
+                "value": float(erc20_fiat_value),
+                "formatted": _format_decimal_value(erc20_fiat_value, fee_digits),
+                "price_symbol": symbol_key,
+            }
 
 
 @router.get("/")
@@ -104,6 +118,7 @@ async def list_fees(
         for chain in chains
     ]
     results = await asyncio.gather(*jobs)
+    _ensure_erc20_shape(results, chains)
 
     raw_fiat = fiat or request.query_params.get("fiat")
     fiat_currency = raw_fiat.lower() if raw_fiat else None
@@ -165,3 +180,25 @@ async def list_fees(
         )
 
     return {"meta": meta, "data": results}
+
+
+def _ensure_erc20_shape(rows: list[dict[str, Any]], chains: list[ChainSettings]) -> None:
+    for row, chain in zip(rows, chains):
+        erc20 = row.get("erc20")
+        gas_limit = chain.erc20_gas_limit
+        if not erc20:
+            erc20 = row["erc20"] = {
+                "gas_limit": gas_limit,
+                "token_symbol": chain.erc20_token_symbol,
+                "fee": {"wei": None, "formatted": None},
+            }
+        else:
+            erc20.setdefault("gas_limit", gas_limit)
+            erc20.setdefault("token_symbol", chain.erc20_token_symbol)
+            fee = erc20.get("fee")
+            if fee is None:
+                erc20["fee"] = {"wei": None, "formatted": None}
+            else:
+                fee.setdefault("wei", None)
+                fee.setdefault("formatted", None)
+        row.setdefault("erc20_fiat_fee", None)

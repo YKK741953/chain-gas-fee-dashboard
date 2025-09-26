@@ -93,6 +93,10 @@ async def test_fees_endpoint_returns_payload(client):
     first = data[0]
     assert first["gas_price"]["gwei"] == "3.0000"
     assert first["native_fee"]["formatted"].startswith("0.000063")
+    assert first["erc20"]["gas_limit"] == 55000
+    assert first["erc20"]["fee"]["formatted"].startswith("0.000165")
+    assert first["erc20"]["token_symbol"] == "WBTC"
+    assert first["erc20_fiat_fee"] is None
 
 
 @pytest.mark.asyncio
@@ -201,6 +205,9 @@ async def test_stale_snapshot_returns_when_rpc_fails(client):
     debug_msg = avax_row.get("debug_error", "")
     assert "infura.io/v3" not in debug_msg
     assert "***" in debug_msg
+    assert avax_row["erc20"]["gas_limit"] == 55000
+    assert avax_row["erc20"]["token_symbol"] == "WBTC"
+    assert avax_row["erc20_fiat_fee"] is None
 
 
 @pytest.mark.asyncio
@@ -263,6 +270,9 @@ async def test_linea_estimate_gas_accepts_int_payload(client):
     linea_row = next(row for row in data if row["chain"]["key"] == "linea")
     assert linea_row["gas_limit"] == 21000
     assert linea_row["notes"] == "linea_estimateGas, feeHistory(p50)+maxPriority"
+    assert linea_row["erc20"]["gas_limit"] == 55000
+    assert linea_row["erc20"]["token_symbol"] == "WBTC"
+    assert linea_row.get("erc20_fiat_fee") is None
 
 
 @pytest.mark.asyncio
@@ -305,6 +315,7 @@ async def test_fees_endpoint_with_fiat_currency(client):
     assert payload["meta"]["fiat_requested"] == "USD"
     ethereum_row = next(row for row in payload["data"] if row["chain"]["key"] == "ethereum")
     assert ethereum_row["fiat_fee"]["formatted"] == "0.1260"
+    assert ethereum_row["erc20_fiat_fee"]["formatted"] == "0.3300"
     # Ensure fallback symbol uses ETH for arbitrum/optimism/linea
     arbitrum_row = next(row for row in payload["data"] if row["chain"]["key"] == "arbitrum")
     assert arbitrum_row["fiat_fee"]["price_symbol"] == "ETH"
