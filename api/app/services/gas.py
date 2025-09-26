@@ -29,6 +29,7 @@ class FeeComputation:
     native_fee_wei: int
     mode: str
     notes: Optional[str] = None
+    l1_fee_wei: int = 0
 
 
 @dataclass(slots=True)
@@ -41,6 +42,13 @@ class FeeSnapshot:
         gas_price_gwei = Decimal(self.data.gas_price_wei) / NANO
         native_fee = Decimal(self.data.native_fee_wei) / WEI
         erc20_fee_wei = self.data.gas_price_wei * self.chain.erc20_gas_limit
+        if self.data.l1_fee_wei and self.data.gas_used:
+            l1_component = (
+                Decimal(self.data.l1_fee_wei)
+                * Decimal(self.chain.erc20_gas_limit)
+                / Decimal(self.data.gas_used)
+            )
+            erc20_fee_wei += int(l1_component.to_integral_value(rounding=ROUND_HALF_UP))
         erc20_fee_native = Decimal(erc20_fee_wei) / WEI
         return {
             "chain": {
@@ -143,6 +151,7 @@ async def _compute_fee_l1(client: httpx.AsyncClient, chain: ChainSettings) -> Fe
         native_fee_wei=native_fee,
         mode=f"l1:{price_mode}",
         notes=note,
+        l1_fee_wei=0,
     )
 
 
@@ -159,6 +168,7 @@ async def _compute_fee_arbitrum(client: httpx.AsyncClient, chain: ChainSettings)
         native_fee_wei=native_fee,
         mode=f"arbitrum:{price_mode}",
         notes=note,
+        l1_fee_wei=0,
     )
 
 
@@ -178,6 +188,7 @@ async def _compute_fee_optimism(client: httpx.AsyncClient, chain: ChainSettings)
         native_fee_wei=native_fee,
         mode="optimism:l2+l1",
         notes=note,
+        l1_fee_wei=l1_fee,
     )
 
 
@@ -204,6 +215,7 @@ async def _compute_fee_linea(client: httpx.AsyncClient, chain: ChainSettings) ->
         native_fee_wei=native_fee,
         mode=f"linea:{price_mode}",
         notes=note,
+        l1_fee_wei=0,
     )
 
 
