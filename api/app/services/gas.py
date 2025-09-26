@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import re
 import time
 from dataclasses import dataclass
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Any, Dict, Iterable, Optional
+from urllib.parse import urlparse
 
 import httpx
 import rlp
@@ -86,7 +88,7 @@ async def get_chain_fee(
                 [payload.get("notes"), f"stale cache ({exc.__class__.__name__})"]
             )
             payload["stale"] = True
-            payload["debug_error"] = str(exc)
+            payload["debug_error"] = _sanitize_error_message(str(exc))
             return payload
         return _error_payload(chain, str(exc))
 
@@ -290,3 +292,17 @@ def _hex_to_int(value: Any) -> int:
     if isinstance(value, int):
         return value
     return int(value, 16)
+
+
+_URL_PATTERN = re.compile(r"https?://[^\s'\"]+")
+
+
+def _sanitize_error_message(message: str) -> str:
+    def _mask(match: re.Match[str]) -> str:
+        raw_url = match.group(0)
+        parsed = urlparse(raw_url)
+        if not parsed.scheme or not parsed.netloc:
+            return "[redacted]"
+        return f"{parsed.scheme}://{parsed.netloc}/***"
+
+    return _URL_PATTERN.sub(_mask, message)

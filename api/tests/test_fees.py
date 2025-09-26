@@ -177,6 +177,9 @@ async def test_stale_snapshot_returns_when_rpc_fails(client):
     assert "stale cache" in avax_row.get("notes", "")
     assert "HTTPStatusError" in avax_row.get("notes", "")
     assert "error" not in avax_row
+    debug_msg = avax_row.get("debug_error", "")
+    assert "infura.io/v3" not in debug_msg
+    assert "***" in debug_msg
 
 
 @pytest.mark.asyncio
