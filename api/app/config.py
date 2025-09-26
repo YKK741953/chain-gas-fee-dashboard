@@ -46,6 +46,7 @@ class AppSettings(BaseSettings):
     coinmarketcap_api_url: str = Field(
         default="https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest"
     )
+    fee_history_reward_percentile: int = Field(default=50, ge=0, le=99)
 
     model_config = {
         "env_file": ('.env.local', '.env'),

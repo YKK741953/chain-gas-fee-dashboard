@@ -56,6 +56,7 @@ Backend configuration is loaded from `.env.local` (preferred) or `.env`:
 - `RPC_<CHAIN>_URL` overrides for each tracked network when using non-Infura providers
 - `ESTIMATE_FROM_ADDRESS` / `ESTIMATE_TO_ADDRESS` / `ESTIMATE_VALUE_WEI` で gas 推定時のトランザクション雛形を上書き可能
 - `COINMARKETCAP_API_KEY` を設定すると `/fees?fiat=usd|jpy` 経由で法定通貨換算が有効化されます（TTL は `PRICE_CACHE_TTL_SECONDS`、エンドポイントは `COINMARKETCAP_API_URL` で調整可能）
+- `FEE_HISTORY_REWARD_PERCENTILE` で EIP-1559 priority tip 推定に使用する reward percentile（MetaMask Medium=50）を切り替え可能
 
 The frontend reads `VITE_API_BASE_URL`; if unset, it calls `/api` and relies on the proxy configuration.
 

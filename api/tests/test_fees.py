@@ -262,7 +262,7 @@ async def test_linea_estimate_gas_accepts_int_payload(client):
     data = response.json()["data"]
     linea_row = next(row for row in data if row["chain"]["key"] == "linea")
     assert linea_row["gas_limit"] == 21000
-    assert linea_row["notes"] == "linea_estimateGas, feeHistory+maxPriority"
+    assert linea_row["notes"] == "linea_estimateGas, feeHistory(p50)+maxPriority"
 
 
 @pytest.mark.asyncio
