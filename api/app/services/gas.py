@@ -163,7 +163,11 @@ async def _compute_fee_linea(client: httpx.AsyncClient, chain: ChainSettings) ->
     tx = _build_tx_payload()
     try:
         gas_resp = await call_rpc(client, url, "linea_estimateGas", params=[tx])
-        gas_used = _hex_to_int(gas_resp["result"])
+        raw_result = gas_resp["result"]
+        if isinstance(raw_result, dict) and "gasLimit" in raw_result:
+            gas_used = _hex_to_int(raw_result["gasLimit"])
+        else:
+            gas_used = _hex_to_int(raw_result)
         gas_note = "linea_estimateGas"
     except Exception as exc:
         gas_used, gas_note = await _estimate_gas(client, url, tx, fallback=chain.native_gas_limit)
