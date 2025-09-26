@@ -282,5 +282,7 @@ def _format_decimal(value: Decimal, digits: int) -> str:
     return format(quantized, f".{digits}f")
 
 
-def _hex_to_int(value: str) -> int:
+def _hex_to_int(value: Any) -> int:
+    if isinstance(value, int):
+        return value
     return int(value, 16)

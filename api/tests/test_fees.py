@@ -177,3 +177,64 @@ async def test_stale_snapshot_returns_when_rpc_fails(client):
     assert "stale cache" in avax_row.get("notes", "")
     assert "HTTPStatusError" in avax_row.get("notes", "")
     assert "error" not in avax_row
+
+
+@pytest.mark.asyncio
+async def test_linea_estimate_gas_accepts_int_payload(client):
+    def linea_handler(request):
+        payload = json.loads(request.content.decode())
+        method = payload.get("method")
+        if method == "linea_estimateGas":
+            return Response(
+                200,
+                json={
+                    "jsonrpc": "2.0",
+                    "id": payload.get("id", 1),
+                    "result": 21000,
+                },
+            )
+        if method == "eth_feeHistory":
+            return Response(
+                200,
+                json={
+                    "jsonrpc": "2.0",
+                    "id": payload.get("id", 1),
+                    "result": {
+                        "baseFeePerGas": ["0x3b9aca00", "0x3b9aca00"],
+                    },
+                },
+            )
+        if method == "eth_maxPriorityFeePerGas":
+            return Response(
+                200,
+                json={
+                    "jsonrpc": "2.0",
+                    "id": payload.get("id", 1),
+                    "result": "0x77359400",
+                },
+            )
+        if method == "eth_gasPrice":
+            return Response(
+                200,
+                json={
+                    "jsonrpc": "2.0",
+                    "id": payload.get("id", 1),
+                    "result": "0x3b9aca00",
+                },
+            )
+        raise AssertionError(f"Unexpected method {method}")
+
+    with respx.mock(assert_all_called=False) as mock:
+        for slug in ("eth", "pol", "arb", "op", "avax"):
+            mock.post(f"https://rpc.test/{slug}").mock(
+                side_effect=make_rpc_handler(slug, "0x3b9aca00", "0x77359400")
+            )
+        mock.post("https://rpc.test/linea").mock(side_effect=linea_handler)
+
+        response = await client.get("/fees/", headers=build_client_headers())
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    linea_row = next(row for row in data if row["chain"]["key"] == "linea")
+    assert linea_row["gas_limit"] == 21000
+    assert linea_row["notes"] == "linea_estimateGas, baseFee+priority"
