@@ -24,6 +24,7 @@ def make_rpc_handler(chain_slug: str, base_fee_hex: str, priority_fee_hex: str) 
                     "id": payload.get("id", 1),
                     "result": {
                         "baseFeePerGas": [base_fee_hex, base_fee_hex],
+                        "reward": [[priority_fee_hex], [priority_fee_hex]],
                     },
                 },
             )
@@ -261,7 +262,7 @@ async def test_linea_estimate_gas_accepts_int_payload(client):
     data = response.json()["data"]
     linea_row = next(row for row in data if row["chain"]["key"] == "linea")
     assert linea_row["gas_limit"] == 21000
-    assert linea_row["notes"] == "linea_estimateGas, baseFee+priority"
+    assert linea_row["notes"] == "linea_estimateGas, feeHistory(p50)+maxPriority"
 
 
 @pytest.mark.asyncio

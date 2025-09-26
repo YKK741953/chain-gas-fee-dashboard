@@ -237,12 +237,36 @@ async def _effective_gas_price(
     url: str,
 ) -> tuple[int, str, str]:
     try:
-        history = await call_rpc(client, url, "eth_feeHistory", params=[5, "latest", [50]])
-        base_fee_hex = history["result"]["baseFeePerGas"][-1]
+        reward_percentile = settings.fee_history_reward_percentile
+        history = await call_rpc(
+            client,
+            url,
+            "eth_feeHistory",
+            params=[5, "latest", [reward_percentile]],
+        )
+        result = history["result"]
+        base_fee_hex = result["baseFeePerGas"][-1]
         base_fee = _hex_to_int(base_fee_hex)
-        priority_resp = await call_rpc(client, url, "eth_maxPriorityFeePerGas")
-        priority_fee = _hex_to_int(priority_resp["result"])
-        return base_fee + priority_fee, "baseFee+priority", "eip1559"
+        priority_fee = None
+        rewards = result.get("reward")
+        if rewards:
+            last_reward = rewards[-1]
+            if last_reward:
+                priority_fee = _hex_to_int(last_reward[0])
+        note_suffix = f"feeHistory(p{reward_percentile})"
+        if priority_fee is None:
+            priority_resp = await call_rpc(client, url, "eth_maxPriorityFeePerGas")
+            priority_fee = _hex_to_int(priority_resp["result"])
+            return (
+                base_fee + priority_fee,
+                note_suffix + "+maxPriority",
+                "eip1559",
+            )
+        return (
+            base_fee + priority_fee,
+            note_suffix,
+            "eip1559",
+        )
     except Exception as exc:
         fallback_resp = await call_rpc(client, url, "eth_gasPrice")
         gas_price = _hex_to_int(fallback_resp["result"])
