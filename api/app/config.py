@@ -31,7 +31,7 @@ class ChainSettings(BaseModel):
 
 
 class AppSettings(BaseSettings):
-    cache_ttl_seconds: int = Field(default=60, ge=5)
+    cache_ttl_seconds: int = Field(default=600, ge=5)
     chains_config_path: Path = Field(
         default=Path(__file__).resolve().parents[2] / "shared" / "chains.json"
     )
@@ -42,7 +42,7 @@ class AppSettings(BaseSettings):
     estimate_to_address: str = Field(default="0x000000000000000000000000000000000000beef")
     estimate_value_wei: int = Field(default=1, ge=0)
     coinmarketcap_api_key: str | None = None
-    price_cache_ttl_seconds: int = Field(default=300, ge=30)
+    price_cache_ttl_seconds: int = Field(default=3600, ge=30)
     coinmarketcap_api_url: str = Field(
         default="https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest"
     )

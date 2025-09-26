@@ -23,6 +23,7 @@ async def get_price_quotes(
     client: httpx.AsyncClient,
     symbols: Iterable[str],
     currency: str,
+    force_refresh: bool = False,
 ) -> dict[str, Decimal]:
     currency_upper = currency.upper()
     unique_symbols = sorted({symbol.upper() for symbol in symbols if symbol})
@@ -30,9 +31,12 @@ async def get_price_quotes(
         return {}
 
     cache_key = (currency_upper, tuple(unique_symbols))
-    cached = _price_cache.get(cache_key)
-    if cached is not None:
-        return cached
+    if force_refresh:
+        _price_cache.pop(cache_key, None)
+    else:
+        cached = _price_cache.get(cache_key)
+        if cached is not None:
+            return cached
 
     settings = get_settings()
     api_key = settings.coinmarketcap_api_key

@@ -94,7 +94,15 @@ async def list_fees(
     chains = get_chains()
     client = request.app.state.http_client
 
-    jobs = [get_chain_fee(client, chain, precise=precise) for chain in chains]
+    refresh_flag = request.query_params.get("refresh")
+    force_refresh = False
+    if refresh_flag is not None:
+        force_refresh = refresh_flag.lower() in {"1", "true", "yes", "on"}
+
+    jobs = [
+        get_chain_fee(client, chain, precise=precise, force_refresh=force_refresh)
+        for chain in chains
+    ]
     results = await asyncio.gather(*jobs)
 
     raw_fiat = fiat or request.query_params.get("fiat")
@@ -117,6 +125,7 @@ async def list_fees(
         "precise_enabled": settings.enable_precise_mode,
         "cache_ttl_seconds": settings.cache_ttl_seconds,
         "generated_at": int(time.time()),
+        "refreshed": force_refresh,
     }
 
     if fiat_currency:
@@ -127,7 +136,9 @@ async def list_fees(
             for chain in chains
         ]
         try:
-            quotes = await get_price_quotes(client, price_symbols, fiat_currency)
+            quotes = await get_price_quotes(
+                client, price_symbols, fiat_currency, force_refresh=force_refresh
+            )
         except PricingError as exc:
             meta["fiat_error"] = str(exc)
         except httpx.HTTPError as exc:
@@ -148,6 +159,7 @@ async def list_fees(
                 "meta": meta,
                 "fiat_currency": meta.get("fiat_currency"),
                 "active_fiat": active_fiat,
+                "force_refresh": force_refresh,
                 "fiat_error": meta.get("fiat_error"),
             },
         )

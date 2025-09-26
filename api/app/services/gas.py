@@ -71,8 +71,11 @@ async def get_chain_fee(
     client: httpx.AsyncClient,
     chain: ChainSettings,
     precise: bool = False,
+    force_refresh: bool = False,
 ) -> Dict[str, Any]:
     cache_key = _cache_key(chain, precise)
+    if force_refresh:
+        _fee_cache.pop(cache_key, None)
     snapshot = _fee_cache.get(cache_key)
     if snapshot is not None:
         return snapshot.as_payload()

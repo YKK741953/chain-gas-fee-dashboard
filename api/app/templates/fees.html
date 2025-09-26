@@ -144,11 +144,11 @@
       </div>
 
       <div class="controls">
-        <a class="button" href="/fees/?format=html{% if active_fiat %}&fiat={{ active_fiat | lower }}{% endif %}">最新に更新</a>
+        <a class="button" href="/fees/?format=html&amp;refresh=1{% if active_fiat %}&amp;fiat={{ active_fiat | lower }}{% endif %}">最新に更新</a>
         <a class="button" href="/fees/{% if active_fiat %}?fiat={{ active_fiat | lower }}{% endif %}">JSON で見る</a>
         <div class="toggle">
-          <a class="{% if active_fiat == 'JPY' or not active_fiat %}active{% endif %}" href="/fees/?format=html&fiat=jpy">JPY</a>
-          <a class="{% if active_fiat == 'USD' %}active{% endif %}" href="/fees/?format=html&fiat=usd">USD</a>
+          <a class="{% if active_fiat == 'JPY' or not active_fiat %}active{% endif %}" href="/fees/?format=html&amp;fiat=jpy">JPY</a>
+          <a class="{% if active_fiat == 'USD' %}active{% endif %}" href="/fees/?format=html&amp;fiat=usd">USD</a>
         </div>
       </div>
 
