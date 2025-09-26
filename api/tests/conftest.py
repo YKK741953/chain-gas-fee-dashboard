@@ -19,13 +19,24 @@ if str(ROOT) not in sys.path:
 
 from api.app.main import app as fastapi_app
 from api.app.services import gas
+from api.app.services import rpc
 
 
 @pytest.fixture(autouse=True)
 def _clear_cache() -> Iterator[None]:
     gas._fee_cache.clear()
+    gas._stale_cache.clear()
     yield
     gas._fee_cache.clear()
+    gas._stale_cache.clear()
+
+
+@pytest.fixture(autouse=True)
+def _fast_sleep(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def _sleep(_: float) -> None:
+        return None
+
+    monkeypatch.setattr(rpc.asyncio, "sleep", _sleep)
 
 
 @pytest.fixture(autouse=True)

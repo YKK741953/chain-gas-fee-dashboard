@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import re
 import time
 from dataclasses import dataclass
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Any, Dict, Iterable, Optional
+from urllib.parse import urlparse
 
 import httpx
 import rlp
@@ -62,6 +64,7 @@ class FeeSnapshot:
 
 settings = get_settings()
 _fee_cache: TTLCache[str, FeeSnapshot] = TTLCache(maxsize=64, ttl=settings.cache_ttl_seconds)
+_stale_cache: dict[str, FeeSnapshot] = {}
 
 
 async def get_chain_fee(
@@ -74,13 +77,24 @@ async def get_chain_fee(
     if snapshot is not None:
         return snapshot.as_payload()
 
+    stale_snapshot = _stale_cache.get(cache_key)
+
     try:
         computation = await _compute_fee(client, chain, precise)
     except (RPCError, httpx.HTTPError) as exc:
+        if stale_snapshot is not None:
+            payload = stale_snapshot.as_payload()
+            payload["notes"] = _combine_notes(
+                [payload.get("notes"), f"stale cache ({exc.__class__.__name__})"]
+            )
+            payload["stale"] = True
+            payload["debug_error"] = _sanitize_error_message(str(exc))
+            return payload
         return _error_payload(chain, str(exc))
 
     snapshot = FeeSnapshot(chain=chain, data=computation, fetched_at=time.time())
     _fee_cache[cache_key] = snapshot
+    _stale_cache[cache_key] = snapshot
     return snapshot.as_payload()
 
 
@@ -151,7 +165,11 @@ async def _compute_fee_linea(client: httpx.AsyncClient, chain: ChainSettings) ->
     tx = _build_tx_payload()
     try:
         gas_resp = await call_rpc(client, url, "linea_estimateGas", params=[tx])
-        gas_used = _hex_to_int(gas_resp["result"])
+        raw_result = gas_resp["result"]
+        if isinstance(raw_result, dict) and "gasLimit" in raw_result:
+            gas_used = _hex_to_int(raw_result["gasLimit"])
+        else:
+            gas_used = _hex_to_int(raw_result)
         gas_note = "linea_estimateGas"
     except Exception as exc:
         gas_used, gas_note = await _estimate_gas(client, url, tx, fallback=chain.native_gas_limit)
@@ -270,5 +288,21 @@ def _format_decimal(value: Decimal, digits: int) -> str:
     return format(quantized, f".{digits}f")
 
 
-def _hex_to_int(value: str) -> int:
+def _hex_to_int(value: Any) -> int:
+    if isinstance(value, int):
+        return value
     return int(value, 16)
+
+
+_URL_PATTERN = re.compile(r"https?://[^\s'\"]+")
+
+
+def _sanitize_error_message(message: str) -> str:
+    def _mask(match: re.Match[str]) -> str:
+        raw_url = match.group(0)
+        parsed = urlparse(raw_url)
+        if not parsed.scheme or not parsed.netloc:
+            return "[redacted]"
+        return f"{parsed.scheme}://{parsed.netloc}/***"
+
+    return _URL_PATTERN.sub(_mask, message)
