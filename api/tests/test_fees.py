@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from typing import Callable
+from decimal import Decimal, ROUND_HALF_UP
 
 import pytest
 import respx
@@ -319,3 +320,45 @@ async def test_fees_endpoint_with_fiat_currency(client):
     # Ensure fallback symbol uses ETH for arbitrum/optimism/linea
     arbitrum_row = next(row for row in payload["data"] if row["chain"]["key"] == "arbitrum")
     assert arbitrum_row["fiat_fee"]["price_symbol"] == "ETH"
+
+
+@pytest.mark.asyncio
+async def test_erc20_fee_includes_l1_component(client):
+    l1_fee_hex = hex(100_000_000_000)
+
+    def optimism_handler(request):
+        payload = json.loads(request.content.decode())
+        method = payload.get("method")
+        if method == "eth_call":
+            return Response(
+                200,
+                json={
+                    "jsonrpc": "2.0",
+                    "id": payload.get("id", 1),
+                    "result": l1_fee_hex,
+                },
+            )
+        return make_rpc_handler("op", "0x3b9aca00", "0x77359400")(request)
+
+    with respx.mock(assert_all_called=False) as mock:
+        mock.route(host="test").pass_through()
+        for slug in ("eth", "pol", "arb", "avax", "linea"):
+            mock.post(f"https://rpc.test/{slug}").mock(
+                side_effect=make_rpc_handler(slug, "0x3b9aca00", "0x77359400")
+            )
+        mock.post("https://rpc.test/op").mock(side_effect=optimism_handler)
+
+        response = await client.get("/fees/", headers=build_client_headers())
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    op_row = next(row for row in data if row["chain"]["key"] == "optimism")
+    gas_price = Decimal(op_row["gas_price"]["wei"])
+    gas_limit = Decimal(op_row["erc20"]["gas_limit"])
+    l1_fee = Decimal(int(l1_fee_hex, 16))
+    native_gas_used = Decimal(op_row["gas_limit"])
+    base_component = gas_price * gas_limit
+    l1_component = (l1_fee * gas_limit / native_gas_used).to_integral_value(rounding=ROUND_HALF_UP)
+    expected_wei = int(base_component) + int(l1_component)
+    assert op_row["erc20"]["fee"]["wei"] == expected_wei
+    assert op_row["erc20_fiat_fee"] is None
