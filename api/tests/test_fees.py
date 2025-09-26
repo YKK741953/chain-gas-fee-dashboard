@@ -8,6 +8,10 @@ import respx
 from httpx import Response
 
 
+def build_client_headers():
+    return {"accept": "application/json"}
+
+
 def make_rpc_handler(base_fee_hex: str, priority_fee_hex: str) -> Callable:
     def handler(request):
         payload = json.loads(request.content.decode())
@@ -54,7 +58,7 @@ async def test_fees_endpoint_returns_payload(client):
                 side_effect=make_rpc_handler("0x3b9aca00", "0x77359400")
             )
 
-        response = await client.get("/fees/")
+        response = await client.get("/fees/", headers=build_client_headers())
 
     assert response.status_code == 200
     payload = response.json()
@@ -76,9 +80,24 @@ async def test_missing_env_returns_error(client, monkeypatch):
                 side_effect=make_rpc_handler("0x3b9aca00", "0x77359400")
             )
 
-        response = await client.get("/fees/")
+        response = await client.get("/fees/", headers=build_client_headers())
 
     assert response.status_code == 200
     data = response.json()["data"]
     optimism_row = next(row for row in data if row["chain"]["key"] == "optimism")
     assert "error" in optimism_row
+
+
+@pytest.mark.asyncio
+async def test_fees_html_view(client):
+    with respx.mock(assert_all_called=False) as mock:
+        for path in ("eth", "pol", "arb", "op", "avax", "linea"):
+            mock.post(f"https://rpc.test/{path}").mock(
+                side_effect=make_rpc_handler("0x3b9aca00", "0x77359400")
+            )
+
+        response = await client.get("/fees/?format=html", headers={"accept": "text/html"})
+
+    assert response.status_code == 200
+    assert "text/html" in response.headers["content-type"]
+    assert "Gas Fee Snapshot" in response.text

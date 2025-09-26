@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Gas Fee Snapshot</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+        background-color: #0d1117;
+        color: #f0f6fc;
+      }
+      body {
+        margin: 0;
+      }
+      main {
+        max-width: 960px;
+        margin: 0 auto;
+        padding: 2rem 1.5rem 3rem;
+      }
+      header {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        margin-bottom: 1.5rem;
+      }
+      header h1 {
+        margin: 0;
+        font-size: 2rem;
+      }
+      .meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        color: #8b949e;
+        margin-bottom: 1rem;
+      }
+      .controls {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+      }
+      a.button {
+        text-decoration: none;
+        background: #238636;
+        color: #fff;
+        padding: 0.5rem 1rem;
+        border-radius: 999px;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        background-color: #161b22;
+        border-radius: 0.75rem;
+        overflow: hidden;
+      }
+      thead {
+        background-color: #1f2933;
+      }
+      th,
+      td {
+        padding: 0.75rem;
+        text-align: left;
+        border-top: 1px solid #21262d;
+      }
+      th {
+        font-weight: 600;
+      }
+      tbody tr:first-child td {
+        border-top: none;
+      }
+      .badge {
+        display: inline-flex;
+        padding: 0.1rem 0.6rem;
+        border-radius: 999px;
+        font-size: 0.75rem;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        border: 1px solid #30363d;
+        color: #c9d1d9;
+      }
+      .badge.ok {
+        border-color: #238636;
+        color: #3fb950;
+      }
+      .badge.error {
+        border-color: #f85149;
+        color: #ff7b72;
+      }
+      footer {
+        margin-top: 2rem;
+        font-size: 0.85rem;
+        color: #8b949e;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>Gas Fee Snapshot</h1>
+        <p>ネイティブ送金 1 回分のガス代をチェーン別に比較します。</p>
+      </header>
+
+      <div class="meta">
+        <span>更新: {{ meta.generated_at | datetime }}</span>
+        <span>キャッシュ寿命: {{ meta.cache_ttl_seconds }} 秒</span>
+        <span>精度モード: {{ '有効' if meta.precise_enabled else '無効' }}</span>
+      </div>
+
+      <div class="controls">
+        <a class="button" href="/fees/?format=html">最新に更新</a>
+        <a class="button" href="/fees/">JSON で見る</a>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>チェーン</th>
+            <th>Gas Price (Gwei)</th>
+            <th>ガス量</th>
+            <th>手数料</th>
+            <th>モード</th>
+            <th>ステータス</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+          <tr>
+            <td>{{ row.chain.display_name }}</td>
+            <td>
+              {% if row.gas_price %}
+              {{ row.gas_price.gwei }} Gwei
+              {% else %}
+              —
+              {% endif %}
+            </td>
+            <td>{{ row.gas_limit or '—' }}</td>
+            <td>
+              {% if row.native_fee %}
+              {{ row.native_fee.formatted }} {{ row.chain.symbol }}
+              {% else %}
+              —
+              {% endif %}
+            </td>
+            <td>{{ row.mode or 'unknown' }}</td>
+            <td>
+              {% if row.error %}
+              <span class="badge error">{{ row.error }}</span>
+              {% elif row.notes %}
+              <span class="badge">{{ row.notes }}</span>
+              {% else %}
+              <span class="badge ok">OK</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+      <footer>
+        <p>
+          この HTML ビューは簡易的な確認用です。API を JSON で利用する場合は
+          <code>/fees/</code> をご利用ください。
+        </p>
+      </footer>
+    </main>
+  </body>
+</html>

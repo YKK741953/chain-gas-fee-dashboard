@@ -27,6 +27,8 @@ A lightweight dashboard that compares native transfer gas fees across Ethereum, 
    ```
 5. Visit http://localhost:5173 to view the dashboard.
 
+ブラウザから API を直接確認する場合は http://localhost:9000/fees/?format=html を開くとテーブル表示で参照できます。
+
 ## Tests
 - Run backend tests with `pytest --asyncio-mode=auto --cov=api` (within the activated venv).
 - Run frontend tests with `npm run test` from `web/`.
