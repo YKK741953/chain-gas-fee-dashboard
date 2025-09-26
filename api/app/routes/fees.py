@@ -179,6 +179,7 @@ def _ensure_erc20_shape(rows: list[dict[str, Any]], chains: list[ChainSettings])
             }
             continue
         erc20.setdefault("gas_limit", gas_limit)
+        erc20.setdefault("token_symbol", chain.erc20_token_symbol)
         fee = erc20.get("fee")
         if fee is None:
             erc20["fee"] = {"wei": None, "formatted": None}

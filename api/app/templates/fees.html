@@ -201,7 +201,7 @@
             </td>
             <td>
               {% if row.erc20 and row.erc20.fee.formatted %}
-              {{ row.erc20.fee.formatted }} {{ row.chain.symbol }}
+              {{ row.erc20.fee.formatted }} {{ row.erc20.token_symbol or row.chain.symbol }}
               {% else %}
               —
               {% endif %}

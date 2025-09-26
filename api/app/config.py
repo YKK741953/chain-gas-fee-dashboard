@@ -22,6 +22,7 @@ class ChainSettings(BaseModel):
     rpc_env: str
     native_gas_limit: int = Field(default=21_000, ge=21_000)
     erc20_gas_limit: int = Field(default=55_000, ge=21_000)
+    erc20_token_symbol: str = Field(default="WBTC")
     infura_network: str | None = None
     fee_model: str = Field(default="l1")
     price_symbol: str | None = None

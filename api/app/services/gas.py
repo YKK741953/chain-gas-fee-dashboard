@@ -60,6 +60,7 @@ class FeeSnapshot:
             },
             "erc20": {
                 "gas_limit": self.chain.erc20_gas_limit,
+                "token_symbol": self.chain.erc20_token_symbol,
                 "fee": {
                     "wei": erc20_fee_wei,
                     "formatted": _format_decimal(erc20_fee_native, 8),
@@ -325,6 +326,7 @@ def _error_payload(chain: ChainSettings, message: str) -> Dict[str, Any]:
         "error": message,
         "erc20": {
             "gas_limit": chain.erc20_gas_limit,
+            "token_symbol": chain.erc20_token_symbol,
             "fee": {"wei": None, "formatted": None},
         },
     }
