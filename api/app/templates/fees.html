@@ -35,8 +35,13 @@
         color: #8b949e;
         margin-bottom: 1rem;
       }
+      .meta .alert {
+        color: #f85149;
+      }
       .controls {
         display: flex;
+        flex-wrap: wrap;
+        align-items: center;
         gap: 1rem;
         margin-bottom: 1.5rem;
       }
@@ -46,6 +51,24 @@
         color: #fff;
         padding: 0.5rem 1rem;
         border-radius: 999px;
+      }
+      .toggle {
+        display: inline-flex;
+        border: 1px solid #30363d;
+        border-radius: 999px;
+        overflow: hidden;
+        background: #161b22;
+      }
+      .toggle a {
+        padding: 0.45rem 1.1rem;
+        color: #c9d1d9;
+        text-decoration: none;
+        font-size: 0.85rem;
+        transition: background 0.2s ease;
+      }
+      .toggle a.active {
+        background: #1f6feb;
+        color: #fff;
       }
       table {
         width: 100%;
@@ -109,11 +132,24 @@
         <span>更新: {{ meta.generated_at | datetime }}</span>
         <span>キャッシュ寿命: {{ meta.cache_ttl_seconds }} 秒</span>
         <span>精度モード: {{ '有効' if meta.precise_enabled else '無効' }}</span>
+        {% if active_fiat %}
+        <span>法定通貨: {{ active_fiat }}</span>
+        {% endif %}
+        {% if meta.fiat_price_source %}
+        <span>価格ソース: {{ meta.fiat_price_source }}</span>
+        {% endif %}
+        {% if fiat_error %}
+        <span class="alert">Fiat取得失敗: {{ fiat_error }}</span>
+        {% endif %}
       </div>
 
       <div class="controls">
-        <a class="button" href="/fees/?format=html">最新に更新</a>
-        <a class="button" href="/fees/">JSON で見る</a>
+        <a class="button" href="/fees/?format=html&amp;refresh=1{% if active_fiat %}&amp;fiat={{ active_fiat | lower }}{% endif %}">最新に更新</a>
+        <a class="button" href="/fees/{% if active_fiat %}?fiat={{ active_fiat | lower }}{% endif %}">JSON で見る</a>
+        <div class="toggle">
+          <a class="{% if active_fiat == 'JPY' or not active_fiat %}active{% endif %}" href="/fees/?format=html&amp;fiat=jpy">JPY</a>
+          <a class="{% if active_fiat == 'USD' %}active{% endif %}" href="/fees/?format=html&amp;fiat=usd">USD</a>
+        </div>
       </div>
 
       <table>
@@ -123,6 +159,7 @@
             <th>Gas Price (Gwei)</th>
             <th>ガス量</th>
             <th>手数料</th>
+            <th>法定手数料</th>
             <th>モード</th>
             <th>ステータス</th>
           </tr>
@@ -142,6 +179,13 @@
             <td>
               {% if row.native_fee %}
               {{ row.native_fee.formatted }} {{ row.chain.symbol }}
+              {% else %}
+              —
+              {% endif %}
+            </td>
+            <td>
+              {% if row.fiat_fee %}
+              {{ row.fiat_fee.formatted }} {{ row.fiat_fee.currency }}
               {% else %}
               —
               {% endif %}

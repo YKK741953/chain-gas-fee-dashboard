@@ -67,12 +67,23 @@ _fee_cache: TTLCache[str, FeeSnapshot] = TTLCache(maxsize=64, ttl=settings.cache
 _stale_cache: dict[str, FeeSnapshot] = {}
 
 
+def reset_gas_cache() -> None:
+    """Reset cached settings and fee cache (used in tests)."""
+    global settings, _fee_cache
+    settings = get_settings()
+    _fee_cache = TTLCache(maxsize=64, ttl=settings.cache_ttl_seconds)
+    _stale_cache.clear()
+
+
 async def get_chain_fee(
     client: httpx.AsyncClient,
     chain: ChainSettings,
     precise: bool = False,
+    force_refresh: bool = False,
 ) -> Dict[str, Any]:
     cache_key = _cache_key(chain, precise)
+    if force_refresh:
+        _fee_cache.pop(cache_key, None)
     snapshot = _fee_cache.get(cache_key)
     if snapshot is not None:
         return snapshot.as_payload()

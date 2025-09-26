@@ -76,6 +76,7 @@ def make_rpc_handler(chain_slug: str, base_fee_hex: str, priority_fee_hex: str) 
 @pytest.mark.asyncio
 async def test_fees_endpoint_returns_payload(client):
     with respx.mock(assert_all_called=False) as mock:
+        mock.route(host="test").pass_through()
         for slug in ("eth", "pol", "arb", "op", "avax", "linea"):
             mock.post(f"https://rpc.test/{slug}").mock(
                 side_effect=make_rpc_handler(slug, "0x3b9aca00", "0x77359400")
@@ -98,6 +99,7 @@ async def test_missing_env_returns_error(client, monkeypatch):
     monkeypatch.delenv("RPC_OPTIMISM_URL", raising=False)
 
     with respx.mock(assert_all_called=False) as mock:
+        mock.route(host="test").pass_through()
         for slug in ("eth", "pol", "arb", "avax", "linea"):
             mock.post(f"https://rpc.test/{slug}").mock(
                 side_effect=make_rpc_handler(slug, "0x3b9aca00", "0x77359400")
@@ -114,16 +116,32 @@ async def test_missing_env_returns_error(client, monkeypatch):
 @pytest.mark.asyncio
 async def test_fees_html_view(client):
     with respx.mock(assert_all_called=False) as mock:
+        mock.route(host="test").pass_through()
         for slug in ("eth", "pol", "arb", "op", "avax", "linea"):
             mock.post(f"https://rpc.test/{slug}").mock(
                 side_effect=make_rpc_handler(slug, "0x3b9aca00", "0x77359400")
             )
+
+        mock.get("https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest").mock(
+            return_value=Response(
+                200,
+                json={
+                    "data": {
+                        "ETH": {"quote": {"JPY": {"price": 300000.0}}},
+                        "POL": {"quote": {"JPY": {"price": 120.0}}},
+                        "AVAX": {"quote": {"JPY": {"price": 4500.0}}},
+                    }
+                },
+            )
+        )
 
         response = await client.get("/fees/?format=html", headers={"accept": "text/html"})
 
     assert response.status_code == 200
     assert "text/html" in response.headers["content-type"]
     assert "Gas Fee Snapshot" in response.text
+    assert "法定通貨: JPY" in response.text
+    assert "toggle" in response.text
 
 
 @pytest.mark.asyncio
@@ -146,6 +164,7 @@ async def test_stale_snapshot_returns_when_rpc_fails(client):
         return make_rpc_handler("avax", "0x3b9aca00", "0x77359400")(request)
 
     with respx.mock(assert_all_called=False) as mock:
+        mock.route(host="test").pass_through()
         for slug in ("eth", "pol", "arb", "op", "linea"):
             mock.post(f"https://rpc.test/{slug}").mock(
                 side_effect=make_rpc_handler(slug, "0x3b9aca00", "0x77359400")
@@ -161,6 +180,7 @@ async def test_stale_snapshot_returns_when_rpc_fails(client):
     failure_active = True
 
     with respx.mock(assert_all_called=False) as mock:
+        mock.route(host="test").pass_through()
         for slug in ("eth", "pol", "arb", "op", "linea"):
             mock.post(f"https://rpc.test/{slug}").mock(
                 side_effect=make_rpc_handler(slug, "0x3b9aca00", "0x77359400")
@@ -228,6 +248,7 @@ async def test_linea_estimate_gas_accepts_int_payload(client):
         raise AssertionError(f"Unexpected method {method}")
 
     with respx.mock(assert_all_called=False) as mock:
+        mock.route(host="test").pass_through()
         for slug in ("eth", "pol", "arb", "op", "avax"):
             mock.post(f"https://rpc.test/{slug}").mock(
                 side_effect=make_rpc_handler(slug, "0x3b9aca00", "0x77359400")
@@ -241,3 +262,48 @@ async def test_linea_estimate_gas_accepts_int_payload(client):
     linea_row = next(row for row in data if row["chain"]["key"] == "linea")
     assert linea_row["gas_limit"] == 21000
     assert linea_row["notes"] == "linea_estimateGas, baseFee+priority"
+
+
+@pytest.mark.asyncio
+async def test_fees_endpoint_with_fiat_currency(client):
+    pricing_response = {
+        "data": {
+            "ETH": {
+                "quote": {
+                    "USD": {"price": 2000.0},
+                }
+            },
+            "POL": {
+                "quote": {
+                    "USD": {"price": 0.5},
+                }
+            },
+            "AVAX": {
+                "quote": {
+                    "USD": {"price": 30.0},
+                }
+            },
+        }
+    }
+
+    with respx.mock(assert_all_called=False) as mock:
+        for slug in ("eth", "pol", "arb", "op", "avax", "linea"):
+            mock.post(f"https://rpc.test/{slug}").mock(
+                side_effect=make_rpc_handler(slug, "0x3b9aca00", "0x77359400")
+            )
+
+        mock.get("https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest").mock(
+            return_value=Response(200, json=pricing_response)
+        )
+
+        response = await client.get("/fees/?fiat=usd", headers=build_client_headers())
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["meta"]["fiat_currency"] == "USD"
+    assert payload["meta"]["fiat_requested"] == "USD"
+    ethereum_row = next(row for row in payload["data"] if row["chain"]["key"] == "ethereum")
+    assert ethereum_row["fiat_fee"]["formatted"] == "0.1260"
+    # Ensure fallback symbol uses ETH for arbitrum/optimism/linea
+    arbitrum_row = next(row for row in payload["data"] if row["chain"]["key"] == "arbitrum")
+    assert arbitrum_row["fiat_fee"]["price_symbol"] == "ETH"

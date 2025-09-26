@@ -55,6 +55,7 @@ Backend configuration is loaded from `.env.local` (preferred) or `.env`:
 - `INFURA_PROJECT_ID` (and optionally `INFURA_PROJECT_SECRET`) to auto-generate Infura RPC URLs
 - `RPC_<CHAIN>_URL` overrides for each tracked network when using non-Infura providers
 - `ESTIMATE_FROM_ADDRESS` / `ESTIMATE_TO_ADDRESS` / `ESTIMATE_VALUE_WEI` で gas 推定時のトランザクション雛形を上書き可能
+- `COINMARKETCAP_API_KEY` を設定すると `/fees?fiat=usd|jpy` 経由で法定通貨換算が有効化されます（TTL は `PRICE_CACHE_TTL_SECONDS`、エンドポイントは `COINMARKETCAP_API_URL` で調整可能）
 
 The frontend reads `VITE_API_BASE_URL`; if unset, it calls `/api` and relies on the proxy configuration.
 
@@ -63,4 +64,4 @@ The frontend reads `VITE_API_BASE_URL`; if unset, it calls `/api` and relies on 
 - Optimism: `eth_estimateGas` と `eth_gasPrice` に加え、GasPriceOracle `getL1Fee` で L1 データ料を取得し合算します。
 - Arbitrum: `eth_estimateGas` の結果に L1 バッファが含まれるため、`gasPrice * estimatedGas` が総コストです。
 - Linea: `linea_estimateGas` が利用可能なら優先し、EIP-1559 価格で乗算します。
-
+  HTML ビューではデフォルトで JPY 換算が有効になっており、トグルから USD / JPY を切り替えられます。API 側も `fiat=usd|jpy` 指定で CoinMarketCap 由来の法定通貨建て手数料を含みます。
