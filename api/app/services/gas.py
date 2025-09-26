@@ -1,34 +1,43 @@
 from __future__ import annotations
 
-import math
 import time
 from dataclasses import dataclass
 from decimal import Decimal, ROUND_HALF_UP
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterable, Optional
 
 import httpx
+import rlp
 from cachetools import TTLCache
+from eth_abi import encode as abi_encode
+from eth_utils import keccak, to_canonical_address
 
 from ..config import ChainSettings, get_settings
 from .rpc import RPCError, call_rpc, resolve_rpc_url
 
 NANO = Decimal("1e9")
 WEI = Decimal("1e18")
+OP_GAS_ORACLE = "0x420000000000000000000000000000000000000F"
+L1_FEE_SELECTOR = keccak(text="getL1Fee(bytes)")[:4].hex()
+
+
+@dataclass(slots=True)
+class FeeComputation:
+    gas_price_wei: int
+    gas_used: int
+    native_fee_wei: int
+    mode: str
+    notes: Optional[str] = None
 
 
 @dataclass(slots=True)
 class FeeSnapshot:
     chain: ChainSettings
-    gas_price_wei: int
-    gas_limit: int
-    native_fee_wei: int
+    data: FeeComputation
     fetched_at: float
-    mode: str
-    notes: Optional[str] = None
 
     def as_payload(self) -> Dict[str, Any]:
-        gas_price_gwei = Decimal(self.gas_price_wei) / NANO
-        native_fee = Decimal(self.native_fee_wei) / WEI
+        gas_price_gwei = Decimal(self.data.gas_price_wei) / NANO
+        native_fee = Decimal(self.data.native_fee_wei) / WEI
         return {
             "chain": {
                 "key": self.chain.key,
@@ -37,17 +46,17 @@ class FeeSnapshot:
                 "chain_id": self.chain.chain_id,
             },
             "gas_price": {
-                "wei": self.gas_price_wei,
+                "wei": self.data.gas_price_wei,
                 "gwei": _format_decimal(gas_price_gwei, 4),
             },
-            "gas_limit": self.gas_limit,
+            "gas_limit": self.data.gas_used,
             "native_fee": {
-                "wei": self.native_fee_wei,
+                "wei": self.data.native_fee_wei,
                 "formatted": _format_decimal(native_fee, 8),
             },
             "fetched_at": int(self.fetched_at),
-            "mode": self.mode,
-            "notes": self.notes,
+            "mode": self.data.mode,
+            "notes": self.data.notes,
         }
 
 
@@ -66,68 +75,181 @@ async def get_chain_fee(
         return snapshot.as_payload()
 
     try:
-        url = resolve_rpc_url(chain)
-    except RPCError as exc:
-        return _error_payload(chain, f"missing RPC url: {exc}")
-
-    try:
-        gas_price_wei, mode, notes = await _fetch_gas_price(client, url, precise)
-        gas_limit = chain.native_gas_limit
-        native_fee_wei = gas_price_wei * gas_limit
-    except RPCError as exc:
+        computation = await _compute_fee(client, chain, precise)
+    except (RPCError, httpx.HTTPError) as exc:
         return _error_payload(chain, str(exc))
-    except httpx.HTTPError as exc:
-        return _error_payload(chain, f"http error: {exc}")
 
-    snapshot = FeeSnapshot(
-        chain=chain,
-        gas_price_wei=gas_price_wei,
-        gas_limit=gas_limit,
-        native_fee_wei=native_fee_wei,
-        fetched_at=time.time(),
-        mode=mode,
-        notes=notes,
-    )
+    snapshot = FeeSnapshot(chain=chain, data=computation, fetched_at=time.time())
     _fee_cache[cache_key] = snapshot
     return snapshot.as_payload()
 
 
-async def _fetch_gas_price(
+async def _compute_fee(client: httpx.AsyncClient, chain: ChainSettings, precise: bool) -> FeeComputation:
+    model = (chain.fee_model or "l1").lower()
+    if model == "optimism":
+        return await _compute_fee_optimism(client, chain)
+    if model == "arbitrum":
+        return await _compute_fee_arbitrum(client, chain)
+    if model == "linea":
+        return await _compute_fee_linea(client, chain)
+    return await _compute_fee_l1(client, chain)
+
+
+async def _compute_fee_l1(client: httpx.AsyncClient, chain: ChainSettings) -> FeeComputation:
+    url = resolve_rpc_url(chain)
+    tx = _build_tx_payload()
+    gas_used, gas_note = await _estimate_gas(client, url, tx, fallback=chain.native_gas_limit)
+    gas_price, price_note, price_mode = await _effective_gas_price(client, url)
+    native_fee = gas_used * gas_price
+    note = _combine_notes([gas_note, price_note])
+    return FeeComputation(
+        gas_price_wei=gas_price,
+        gas_used=gas_used,
+        native_fee_wei=native_fee,
+        mode=f"l1:{price_mode}",
+        notes=note,
+    )
+
+
+async def _compute_fee_arbitrum(client: httpx.AsyncClient, chain: ChainSettings) -> FeeComputation:
+    url = resolve_rpc_url(chain)
+    tx = _build_tx_payload()
+    gas_used, gas_note = await _estimate_gas(client, url, tx)
+    gas_price, price_note, price_mode = await _effective_gas_price(client, url)
+    native_fee = gas_used * gas_price
+    note = _combine_notes(["estimateGas includes L1 buffer", gas_note, price_note])
+    return FeeComputation(
+        gas_price_wei=gas_price,
+        gas_used=gas_used,
+        native_fee_wei=native_fee,
+        mode=f"arbitrum:{price_mode}",
+        notes=note,
+    )
+
+
+async def _compute_fee_optimism(client: httpx.AsyncClient, chain: ChainSettings) -> FeeComputation:
+    url = resolve_rpc_url(chain)
+    tx = _build_tx_payload()
+    gas_used, gas_note = await _estimate_gas(client, url, tx)
+    gas_price_resp = await call_rpc(client, url, "eth_gasPrice")
+    gas_price = _hex_to_int(gas_price_resp["result"])
+    price_note = "eth_gasPrice"
+    l1_fee, l1_note = await _optimism_l1_fee(client, url, chain, tx, gas_price, gas_used)
+    native_fee = gas_used * gas_price + l1_fee
+    note = _combine_notes([gas_note, price_note, l1_note])
+    return FeeComputation(
+        gas_price_wei=gas_price,
+        gas_used=gas_used,
+        native_fee_wei=native_fee,
+        mode="optimism:l2+l1",
+        notes=note,
+    )
+
+
+async def _compute_fee_linea(client: httpx.AsyncClient, chain: ChainSettings) -> FeeComputation:
+    url = resolve_rpc_url(chain)
+    tx = _build_tx_payload()
+    try:
+        gas_resp = await call_rpc(client, url, "linea_estimateGas", params=[tx])
+        gas_used = _hex_to_int(gas_resp["result"])
+        gas_note = "linea_estimateGas"
+    except Exception as exc:
+        gas_used, gas_note = await _estimate_gas(client, url, tx, fallback=chain.native_gas_limit)
+        gas_note = f"fallback estimateGas ({exc.__class__.__name__})"
+    gas_price, price_note, price_mode = await _effective_gas_price(client, url)
+    native_fee = gas_used * gas_price
+    note = _combine_notes([gas_note, price_note])
+    return FeeComputation(
+        gas_price_wei=gas_price,
+        gas_used=gas_used,
+        native_fee_wei=native_fee,
+        mode=f"linea:{price_mode}",
+        notes=note,
+    )
+
+
+async def _optimism_l1_fee(
     client: httpx.AsyncClient,
     url: str,
-    precise: bool,
-) -> tuple[int, str, Optional[str]]:
-    effective_precise = precise and settings.enable_precise_mode
-
+    chain: ChainSettings,
+    tx: Dict[str, Any],
+    gas_price: int,
+    gas_limit: int,
+) -> tuple[int, str]:
+    raw_tx = _serialize_legacy_tx(chain, tx, gas_price, gas_limit)
+    payload_bytes = abi_encode(["bytes"], [raw_tx])
+    data = "0x" + L1_FEE_SELECTOR + payload_bytes.hex()
+    call_params = {"to": OP_GAS_ORACLE, "data": data}
     try:
-        history = await call_rpc(
-            client,
-            url,
-            "eth_feeHistory",
-            params=[5, "latest", [50]],
-        )
+        fee_resp = await call_rpc(client, url, "eth_call", params=[call_params, "latest"])
+        l1_fee = _hex_to_int(fee_resp["result"])
+        return l1_fee, "GasPriceOracle.getL1Fee"
+    except Exception as exc:
+        return 0, f"optimism l1 fee fallback ({exc.__class__.__name__})"
+
+
+async def _estimate_gas(
+    client: httpx.AsyncClient,
+    url: str,
+    tx: Dict[str, Any],
+    fallback: Optional[int] = None,
+) -> tuple[int, Optional[str]]:
+    try:
+        resp = await call_rpc(client, url, "eth_estimateGas", params=[tx])
+        return _hex_to_int(resp["result"]), "eth_estimateGas"
+    except Exception as exc:
+        if fallback is not None:
+            return fallback, f"fallback:{exc.__class__.__name__}"
+        raise RPCError(f"estimateGas failed: {exc}")
+
+
+async def _effective_gas_price(
+    client: httpx.AsyncClient,
+    url: str,
+) -> tuple[int, str, str]:
+    try:
+        history = await call_rpc(client, url, "eth_feeHistory", params=[5, "latest", [50]])
         base_fee_hex = history["result"]["baseFeePerGas"][-1]
-        base_fee = int(base_fee_hex, 16)
-
+        base_fee = _hex_to_int(base_fee_hex)
         priority_resp = await call_rpc(client, url, "eth_maxPriorityFeePerGas")
-        priority_fee = int(priority_resp["result"], 16)
+        priority_fee = _hex_to_int(priority_resp["result"])
+        return base_fee + priority_fee, "baseFee+priority", "eip1559"
+    except Exception as exc:
+        fallback_resp = await call_rpc(client, url, "eth_gasPrice")
+        gas_price = _hex_to_int(fallback_resp["result"])
+        return gas_price, f"fallback gasPrice ({exc.__class__.__name__})", "legacy"
 
-        gas_price_wei = base_fee + priority_fee
-        notes = "baseFee+priority"
-        return gas_price_wei, "standard", notes
-    except Exception as primary_error:  # broad to allow fallback
-        try:
-            fallback_resp = await call_rpc(client, url, "eth_gasPrice")
-            gas_price_wei = int(fallback_resp["result"], 16)
-            notes = f"fallback:eth_gasPrice ({primary_error.__class__.__name__})"
-            mode = "precise-fallback" if effective_precise else "fallback"
-            return gas_price_wei, mode, notes
-        except Exception as fallback_error:
-            raise RPCError(f"unable to fetch gas price: {fallback_error}")
+
+def _serialize_legacy_tx(chain: ChainSettings, tx: Dict[str, Any], gas_price: int, gas_limit: int) -> bytes:
+    nonce = 0
+    to_address = to_canonical_address(tx["to"])
+    value = int(tx.get("value", "0x0"), 16)
+    data_bytes = bytes.fromhex(tx.get("data", "0x")[2:])
+    r = 0
+    s = 0
+    v = chain.chain_id
+    return rlp.encode([nonce, gas_price, gas_limit, to_address, value, data_bytes, v, r, s])
+
+
+def _build_tx_payload() -> Dict[str, Any]:
+    value_hex = hex(settings.estimate_value_wei)
+    return {
+        "from": settings.estimate_from_address,
+        "to": settings.estimate_to_address,
+        "value": value_hex,
+        "data": "0x",
+    }
+
+
+def _combine_notes(notes: Iterable[Optional[str]]) -> Optional[str]:
+    filtered = [note for note in notes if note]
+    if not filtered:
+        return None
+    return ", ".join(filtered)
 
 
 def _cache_key(chain: ChainSettings, precise: bool) -> str:
-    return f"{chain.key}:{int(precise and settings.enable_precise_mode)}"
+    return f"{chain.key}:{chain.fee_model}:{int(precise and settings.enable_precise_mode)}"
 
 
 def _error_payload(chain: ChainSettings, message: str) -> Dict[str, Any]:
@@ -145,4 +267,8 @@ def _error_payload(chain: ChainSettings, message: str) -> Dict[str, Any]:
 def _format_decimal(value: Decimal, digits: int) -> str:
     quantize_exp = Decimal(1) / (Decimal(10) ** digits)
     quantized = value.quantize(quantize_exp, rounding=ROUND_HALF_UP)
-    return format(quantized, f'.{digits}f')
+    return format(quantized, f".{digits}f")
+
+
+def _hex_to_int(value: str) -> int:
+    return int(value, 16)

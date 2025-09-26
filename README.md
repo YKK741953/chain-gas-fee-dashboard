@@ -54,5 +54,13 @@ Backend configuration is loaded from `.env.local` (preferred) or `.env`:
 - `CACHE_TTL_SECONDS`, `HTTP_TIMEOUT_SECONDS`, `HTTP_MAX_CONNECTIONS`, `ENABLE_PRECISE_MODE`
 - `INFURA_PROJECT_ID` (and optionally `INFURA_PROJECT_SECRET`) to auto-generate Infura RPC URLs
 - `RPC_<CHAIN>_URL` overrides for each tracked network when using non-Infura providers
+- `ESTIMATE_FROM_ADDRESS` / `ESTIMATE_TO_ADDRESS` / `ESTIMATE_VALUE_WEI` で gas 推定時のトランザクション雛形を上書き可能
 
 The frontend reads `VITE_API_BASE_URL`; if unset, it calls `/api` and relies on the proxy configuration.
+
+## ガス計算ロジック
+- Ethereum / Polygon / Avalanche: `eth_feeHistory` と `eth_maxPriorityFeePerGas` で EIP-1559 価格を構築し、`eth_estimateGas` による 21,000 gas と掛け合わせます。
+- Optimism: `eth_estimateGas` と `eth_gasPrice` に加え、GasPriceOracle `getL1Fee` で L1 データ料を取得し合算します。
+- Arbitrum: `eth_estimateGas` の結果に L1 バッファが含まれるため、`gasPrice * estimatedGas` が総コストです。
+- Linea: `linea_estimateGas` が利用可能なら優先し、EIP-1559 価格で乗算します。
+

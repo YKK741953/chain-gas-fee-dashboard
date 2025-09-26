@@ -12,7 +12,7 @@ def build_client_headers():
     return {"accept": "application/json"}
 
 
-def make_rpc_handler(base_fee_hex: str, priority_fee_hex: str) -> Callable:
+def make_rpc_handler(chain_slug: str, base_fee_hex: str, priority_fee_hex: str) -> Callable:
     def handler(request):
         payload = json.loads(request.content.decode())
         method = payload.get("method")
@@ -45,7 +45,30 @@ def make_rpc_handler(base_fee_hex: str, priority_fee_hex: str) -> Callable:
                     "result": base_fee_hex,
                 },
             )
-        raise AssertionError(f"Unexpected method {method}")
+        if method in ("eth_estimateGas", "linea_estimateGas"):
+            gas_hex = "0x5208"  # 21000
+            if chain_slug == "arb":
+                gas_hex = "0x6000"
+            if chain_slug == "linea":
+                gas_hex = "0x5300"
+            return Response(
+                200,
+                json={
+                    "jsonrpc": "2.0",
+                    "id": payload.get("id", 1),
+                    "result": gas_hex,
+                },
+            )
+        if method == "eth_call":
+            return Response(
+                200,
+                json={
+                    "jsonrpc": "2.0",
+                    "id": payload.get("id", 1),
+                    "result": "0x0",
+                },
+            )
+        raise AssertionError(f"Unexpected method {method} for {chain_slug}")
 
     return handler
 
@@ -53,9 +76,9 @@ def make_rpc_handler(base_fee_hex: str, priority_fee_hex: str) -> Callable:
 @pytest.mark.asyncio
 async def test_fees_endpoint_returns_payload(client):
     with respx.mock(assert_all_called=False) as mock:
-        for path in ("eth", "pol", "arb", "op", "avax", "linea"):
-            mock.post(f"https://rpc.test/{path}").mock(
-                side_effect=make_rpc_handler("0x3b9aca00", "0x77359400")
+        for slug in ("eth", "pol", "arb", "op", "avax", "linea"):
+            mock.post(f"https://rpc.test/{slug}").mock(
+                side_effect=make_rpc_handler(slug, "0x3b9aca00", "0x77359400")
             )
 
         response = await client.get("/fees/", headers=build_client_headers())
@@ -75,9 +98,9 @@ async def test_missing_env_returns_error(client, monkeypatch):
     monkeypatch.delenv("RPC_OPTIMISM_URL", raising=False)
 
     with respx.mock(assert_all_called=False) as mock:
-        for path in ("eth", "pol", "arb", "avax", "linea"):
-            mock.post(f"https://rpc.test/{path}").mock(
-                side_effect=make_rpc_handler("0x3b9aca00", "0x77359400")
+        for slug in ("eth", "pol", "arb", "avax", "linea"):
+            mock.post(f"https://rpc.test/{slug}").mock(
+                side_effect=make_rpc_handler(slug, "0x3b9aca00", "0x77359400")
             )
 
         response = await client.get("/fees/", headers=build_client_headers())
@@ -91,9 +114,9 @@ async def test_missing_env_returns_error(client, monkeypatch):
 @pytest.mark.asyncio
 async def test_fees_html_view(client):
     with respx.mock(assert_all_called=False) as mock:
-        for path in ("eth", "pol", "arb", "op", "avax", "linea"):
-            mock.post(f"https://rpc.test/{path}").mock(
-                side_effect=make_rpc_handler("0x3b9aca00", "0x77359400")
+        for slug in ("eth", "pol", "arb", "op", "avax", "linea"):
+            mock.post(f"https://rpc.test/{slug}").mock(
+                side_effect=make_rpc_handler(slug, "0x3b9aca00", "0x77359400")
             )
 
         response = await client.get("/fees/?format=html", headers={"accept": "text/html"})

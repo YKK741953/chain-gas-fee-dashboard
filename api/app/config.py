@@ -22,6 +22,7 @@ class ChainSettings(BaseModel):
     rpc_env: str
     native_gas_limit: int = Field(default=21_000, ge=21_000)
     infura_network: str | None = None
+    fee_model: str = Field(default="l1")
 
     @property
     def env_var(self) -> str:
@@ -36,6 +37,9 @@ class AppSettings(BaseSettings):
     http_timeout_seconds: float = Field(default=8.0, ge=1.0)
     http_max_connections: int = Field(default=12, ge=1)
     enable_precise_mode: bool = False
+    estimate_from_address: str = Field(default="0x000000000000000000000000000000000000dead")
+    estimate_to_address: str = Field(default="0x000000000000000000000000000000000000beef")
+    estimate_value_wei: int = Field(default=1, ge=0)
 
     model_config = {
         "env_file": ('.env.local', '.env'),
