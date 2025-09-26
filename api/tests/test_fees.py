@@ -241,3 +241,47 @@ async def test_linea_estimate_gas_accepts_int_payload(client):
     linea_row = next(row for row in data if row["chain"]["key"] == "linea")
     assert linea_row["gas_limit"] == 21000
     assert linea_row["notes"] == "linea_estimateGas, baseFee+priority"
+
+
+@pytest.mark.asyncio
+async def test_fees_endpoint_with_fiat_currency(client):
+    pricing_response = {
+        "data": {
+            "ETH": {
+                "quote": {
+                    "USD": {"price": 2000.0},
+                }
+            },
+            "POL": {
+                "quote": {
+                    "USD": {"price": 0.5},
+                }
+            },
+            "AVAX": {
+                "quote": {
+                    "USD": {"price": 30.0},
+                }
+            },
+        }
+    }
+
+    with respx.mock(assert_all_called=False) as mock:
+        for slug in ("eth", "pol", "arb", "op", "avax", "linea"):
+            mock.post(f"https://rpc.test/{slug}").mock(
+                side_effect=make_rpc_handler(slug, "0x3b9aca00", "0x77359400")
+            )
+
+        mock.get("https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest").mock(
+            return_value=Response(200, json=pricing_response)
+        )
+
+        response = await client.get("/fees/?fiat=usd", headers=build_client_headers())
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["meta"]["fiat_currency"] == "USD"
+    ethereum_row = next(row for row in payload["data"] if row["chain"]["key"] == "ethereum")
+    assert ethereum_row["fiat_fee"]["formatted"] == "0.1260"
+    # Ensure fallback symbol uses ETH for arbitrum/optimism/linea
+    arbitrum_row = next(row for row in payload["data"] if row["chain"]["key"] == "arbitrum")
+    assert arbitrum_row["fiat_fee"]["price_symbol"] == "ETH"

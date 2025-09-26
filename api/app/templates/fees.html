@@ -35,6 +35,9 @@
         color: #8b949e;
         margin-bottom: 1rem;
       }
+      .meta .alert {
+        color: #f85149;
+      }
       .controls {
         display: flex;
         gap: 1rem;
@@ -109,11 +112,24 @@
         <span>更新: {{ meta.generated_at | datetime }}</span>
         <span>キャッシュ寿命: {{ meta.cache_ttl_seconds }} 秒</span>
         <span>精度モード: {{ '有効' if meta.precise_enabled else '無効' }}</span>
+        {% if meta.fiat_currency %}
+        <span>法定通貨: {{ meta.fiat_currency }}</span>
+        {% elif fiat_currency %}
+        <span>法定通貨: {{ fiat_currency | upper }}</span>
+        {% endif %}
+        {% if meta.fiat_price_source %}
+        <span>価格ソース: {{ meta.fiat_price_source }}</span>
+        {% endif %}
+        {% if fiat_error %}
+        <span class="alert">Fiat取得失敗: {{ fiat_error }}</span>
+        {% endif %}
       </div>
 
       <div class="controls">
         <a class="button" href="/fees/?format=html">最新に更新</a>
         <a class="button" href="/fees/">JSON で見る</a>
+        <a class="button" href="/fees/?format=html&fiat=usd">USD 換算</a>
+        <a class="button" href="/fees/?format=html&fiat=jpy">JPY 換算</a>
       </div>
 
       <table>
@@ -123,6 +139,7 @@
             <th>Gas Price (Gwei)</th>
             <th>ガス量</th>
             <th>手数料</th>
+            <th>法定手数料</th>
             <th>モード</th>
             <th>ステータス</th>
           </tr>
@@ -142,6 +159,13 @@
             <td>
               {% if row.native_fee %}
               {{ row.native_fee.formatted }} {{ row.chain.symbol }}
+              {% else %}
+              —
+              {% endif %}
+            </td>
+            <td>
+              {% if row.fiat_fee %}
+              {{ row.fiat_fee.formatted }} {{ row.fiat_fee.currency }}
               {% else %}
               —
               {% endif %}

@@ -20,15 +20,18 @@ if str(ROOT) not in sys.path:
 from api.app.main import app as fastapi_app
 from api.app.services import gas
 from api.app.services import rpc
+from api.app.services import pricing
 
 
 @pytest.fixture(autouse=True)
 def _clear_cache() -> Iterator[None]:
     gas._fee_cache.clear()
     gas._stale_cache.clear()
+    pricing._price_cache.clear()
     yield
     gas._fee_cache.clear()
     gas._stale_cache.clear()
+    pricing._price_cache.clear()
 
 
 @pytest.fixture(autouse=True)
@@ -47,6 +50,7 @@ def _set_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("RPC_OPTIMISM_URL", "https://rpc.test/op")
     monkeypatch.setenv("RPC_AVALANCHE_URL", "https://rpc.test/avax")
     monkeypatch.setenv("RPC_LINEA_URL", "https://rpc.test/linea")
+    monkeypatch.setenv("COINMARKETCAP_API_KEY", "test-key")
     monkeypatch.delenv("INFURA_PROJECT_ID", raising=False)
     monkeypatch.delenv("INFURA_PROJECT_SECRET", raising=False)
 

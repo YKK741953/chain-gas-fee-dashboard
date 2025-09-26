@@ -7,7 +7,8 @@
     "rpc_env": "RPC_ETHEREUM_URL",
     "native_gas_limit": 21000,
     "infura_network": "mainnet",
-    "fee_model": "l1"
+    "fee_model": "l1",
+    "price_symbol": "ETH"
   },
   {
     "key": "polygon",
@@ -17,7 +18,8 @@
     "rpc_env": "RPC_POLYGON_URL",
     "native_gas_limit": 21000,
     "infura_network": "polygon-mainnet",
-    "fee_model": "l1"
+    "fee_model": "l1",
+    "price_symbol": "POL"
   },
   {
     "key": "arbitrum",
@@ -27,7 +29,8 @@
     "rpc_env": "RPC_ARBITRUM_URL",
     "native_gas_limit": 21000,
     "infura_network": "arbitrum-mainnet",
-    "fee_model": "arbitrum"
+    "fee_model": "arbitrum",
+    "price_symbol": "ETH"
   },
   {
     "key": "optimism",
@@ -37,7 +40,8 @@
     "rpc_env": "RPC_OPTIMISM_URL",
     "native_gas_limit": 21000,
     "infura_network": "optimism-mainnet",
-    "fee_model": "optimism"
+    "fee_model": "optimism",
+    "price_symbol": "ETH"
   },
   {
     "key": "avalanche",
@@ -47,7 +51,8 @@
     "rpc_env": "RPC_AVALANCHE_URL",
     "native_gas_limit": 21000,
     "infura_network": "avalanche-mainnet",
-    "fee_model": "l1"
+    "fee_model": "l1",
+    "price_symbol": "AVAX"
   },
   {
     "key": "linea",
@@ -57,6 +62,7 @@
     "rpc_env": "RPC_LINEA_URL",
     "native_gas_limit": 21000,
     "infura_network": "linea-mainnet",
-    "fee_model": "linea"
+    "fee_model": "linea",
+    "price_symbol": "ETH"
   }
 ]

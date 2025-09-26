@@ -23,6 +23,7 @@ class ChainSettings(BaseModel):
     native_gas_limit: int = Field(default=21_000, ge=21_000)
     infura_network: str | None = None
     fee_model: str = Field(default="l1")
+    price_symbol: str | None = None
 
     @property
     def env_var(self) -> str:
@@ -40,6 +41,11 @@ class AppSettings(BaseSettings):
     estimate_from_address: str = Field(default="0x000000000000000000000000000000000000dead")
     estimate_to_address: str = Field(default="0x000000000000000000000000000000000000beef")
     estimate_value_wei: int = Field(default=1, ge=0)
+    coinmarketcap_api_key: str | None = None
+    price_cache_ttl_seconds: int = Field(default=300, ge=30)
+    coinmarketcap_api_url: str = Field(
+        default="https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest"
+    )
 
     model_config = {
         "env_file": ('.env.local', '.env'),
