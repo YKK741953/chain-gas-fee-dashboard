@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import os
+import asyncio
 from typing import Any, Dict, Iterable
 
 import httpx
 
 from ..config import ChainSettings
+
+RETRYABLE_STATUS = {429, 500, 502, 503, 504}
 
 
 class RPCError(Exception):
@@ -17,6 +20,8 @@ async def call_rpc(
     url: str,
     method: str,
     params: Iterable[Any] | None = None,
+    retries: int = 2,
+    initial_backoff: float = 0.5,
 ) -> Dict[str, Any]:
     payload = {
         "jsonrpc": "2.0",
@@ -24,13 +29,32 @@ async def call_rpc(
         "method": method,
         "params": list(params or []),
     }
-    response = await client.post(url, json=payload)
-    response.raise_for_status()
-    payload = response.json()
-    if "error" in payload:
-        message = payload["error"].get("message", "unknown RPC error")
-        raise RPCError(message)
-    return payload
+    attempt = 0
+    backoff = initial_backoff
+    while True:
+        try:
+            response = await client.post(url, json=payload)
+            response.raise_for_status()
+            data = response.json()
+            if "error" in data:
+                message = data["error"].get("message", "unknown RPC error")
+                raise RPCError(message)
+            return data
+        except httpx.HTTPStatusError as exc:
+            status = exc.response.status_code
+            if attempt < retries and status in RETRYABLE_STATUS:
+                await asyncio.sleep(backoff)
+                attempt += 1
+                backoff *= 2
+                continue
+            raise
+        except httpx.RequestError:
+            if attempt < retries:
+                await asyncio.sleep(backoff)
+                attempt += 1
+                backoff *= 2
+                continue
+            raise
 
 
 def resolve_rpc_url(chain: ChainSettings) -> str:

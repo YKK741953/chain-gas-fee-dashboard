@@ -124,3 +124,56 @@ async def test_fees_html_view(client):
     assert response.status_code == 200
     assert "text/html" in response.headers["content-type"]
     assert "Gas Fee Snapshot" in response.text
+
+
+@pytest.mark.asyncio
+async def test_stale_snapshot_returns_when_rpc_fails(client):
+    from api.app.services import gas
+
+    failure_active = False
+
+    def avalanche_handler(request):
+        nonlocal failure_active
+        payload = json.loads(request.content.decode())
+        method = payload.get("method")
+
+        if not failure_active:
+            return make_rpc_handler("avax", "0x3b9aca00", "0x77359400")(request)
+
+        if method in ("eth_feeHistory", "eth_gasPrice"):
+            return Response(429)
+
+        return make_rpc_handler("avax", "0x3b9aca00", "0x77359400")(request)
+
+    with respx.mock(assert_all_called=False) as mock:
+        for slug in ("eth", "pol", "arb", "op", "linea"):
+            mock.post(f"https://rpc.test/{slug}").mock(
+                side_effect=make_rpc_handler(slug, "0x3b9aca00", "0x77359400")
+            )
+
+        mock.post("https://rpc.test/avax").mock(side_effect=avalanche_handler)
+
+        first_response = await client.get("/fees/", headers=build_client_headers())
+
+    assert first_response.status_code == 200
+
+    gas._fee_cache.clear()
+    failure_active = True
+
+    with respx.mock(assert_all_called=False) as mock:
+        for slug in ("eth", "pol", "arb", "op", "linea"):
+            mock.post(f"https://rpc.test/{slug}").mock(
+                side_effect=make_rpc_handler(slug, "0x3b9aca00", "0x77359400")
+            )
+
+        mock.post("https://rpc.test/avax").mock(side_effect=avalanche_handler)
+
+        second = await client.get("/fees/", headers=build_client_headers())
+
+    assert second.status_code == 200
+    data = second.json()["data"]
+    avax_row = next(row for row in data if row["chain"]["key"] == "avalanche")
+    assert avax_row.get("stale") is True
+    assert "stale cache" in avax_row.get("notes", "")
+    assert "HTTPStatusError" in avax_row.get("notes", "")
+    assert "error" not in avax_row

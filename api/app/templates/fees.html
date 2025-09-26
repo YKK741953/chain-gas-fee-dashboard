@@ -87,6 +87,10 @@
         border-color: #f85149;
         color: #ff7b72;
       }
+      .badge.warn {
+        border-color: #9e6a03;
+        color: #d29922;
+      }
       footer {
         margin-top: 2rem;
         font-size: 0.85rem;
@@ -146,6 +150,8 @@
             <td>
               {% if row.error %}
               <span class="badge error">{{ row.error }}</span>
+              {% elif row.stale %}
+              <span class="badge warn">{{ row.notes or 'stale cache' }}</span>
               {% elif row.notes %}
               <span class="badge">{{ row.notes }}</span>
               {% else %}

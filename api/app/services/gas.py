@@ -62,6 +62,7 @@ class FeeSnapshot:
 
 settings = get_settings()
 _fee_cache: TTLCache[str, FeeSnapshot] = TTLCache(maxsize=64, ttl=settings.cache_ttl_seconds)
+_stale_cache: dict[str, FeeSnapshot] = {}
 
 
 async def get_chain_fee(
@@ -74,13 +75,24 @@ async def get_chain_fee(
     if snapshot is not None:
         return snapshot.as_payload()
 
+    stale_snapshot = _stale_cache.get(cache_key)
+
     try:
         computation = await _compute_fee(client, chain, precise)
     except (RPCError, httpx.HTTPError) as exc:
+        if stale_snapshot is not None:
+            payload = stale_snapshot.as_payload()
+            payload["notes"] = _combine_notes(
+                [payload.get("notes"), f"stale cache ({exc.__class__.__name__})"]
+            )
+            payload["stale"] = True
+            payload["debug_error"] = str(exc)
+            return payload
         return _error_payload(chain, str(exc))
 
     snapshot = FeeSnapshot(chain=chain, data=computation, fetched_at=time.time())
     _fee_cache[cache_key] = snapshot
+    _stale_cache[cache_key] = snapshot
     return snapshot.as_payload()
 
 
