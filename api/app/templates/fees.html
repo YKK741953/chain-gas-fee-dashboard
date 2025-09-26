@@ -162,6 +162,7 @@
             <th>法定手数料</th>
             <th>ERC20 ガス量</th>
             <th>ERC20 手数料</th>
+            <th>ERC20 法定手数料</th>
             <th>モード</th>
             <th>ステータス</th>
           </tr>
@@ -201,7 +202,14 @@
             </td>
             <td>
               {% if row.erc20 and row.erc20.fee.formatted %}
-              {{ row.erc20.fee.formatted }} {{ row.erc20.token_symbol or row.chain.symbol }}
+              {{ row.erc20.fee.formatted }} {{ row.chain.symbol }}
+              {% else %}
+              —
+              {% endif %}
+            </td>
+            <td>
+              {% if row.erc20_fiat_fee %}
+              {{ row.erc20_fiat_fee.formatted }} {{ row.erc20_fiat_fee.currency }}
               {% else %}
               —
               {% endif %}
