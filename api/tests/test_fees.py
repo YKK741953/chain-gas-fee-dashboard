@@ -76,6 +76,7 @@ def make_rpc_handler(chain_slug: str, base_fee_hex: str, priority_fee_hex: str) 
 @pytest.mark.asyncio
 async def test_fees_endpoint_returns_payload(client):
     with respx.mock(assert_all_called=False) as mock:
+        mock.route(host="test").pass_through()
         for slug in ("eth", "pol", "arb", "op", "avax", "linea"):
             mock.post(f"https://rpc.test/{slug}").mock(
                 side_effect=make_rpc_handler(slug, "0x3b9aca00", "0x77359400")
@@ -98,6 +99,7 @@ async def test_missing_env_returns_error(client, monkeypatch):
     monkeypatch.delenv("RPC_OPTIMISM_URL", raising=False)
 
     with respx.mock(assert_all_called=False) as mock:
+        mock.route(host="test").pass_through()
         for slug in ("eth", "pol", "arb", "avax", "linea"):
             mock.post(f"https://rpc.test/{slug}").mock(
                 side_effect=make_rpc_handler(slug, "0x3b9aca00", "0x77359400")
@@ -114,6 +116,7 @@ async def test_missing_env_returns_error(client, monkeypatch):
 @pytest.mark.asyncio
 async def test_fees_html_view(client):
     with respx.mock(assert_all_called=False) as mock:
+        mock.route(host="test").pass_through()
         for slug in ("eth", "pol", "arb", "op", "avax", "linea"):
             mock.post(f"https://rpc.test/{slug}").mock(
                 side_effect=make_rpc_handler(slug, "0x3b9aca00", "0x77359400")
@@ -161,6 +164,7 @@ async def test_stale_snapshot_returns_when_rpc_fails(client):
         return make_rpc_handler("avax", "0x3b9aca00", "0x77359400")(request)
 
     with respx.mock(assert_all_called=False) as mock:
+        mock.route(host="test").pass_through()
         for slug in ("eth", "pol", "arb", "op", "linea"):
             mock.post(f"https://rpc.test/{slug}").mock(
                 side_effect=make_rpc_handler(slug, "0x3b9aca00", "0x77359400")
@@ -176,6 +180,7 @@ async def test_stale_snapshot_returns_when_rpc_fails(client):
     failure_active = True
 
     with respx.mock(assert_all_called=False) as mock:
+        mock.route(host="test").pass_through()
         for slug in ("eth", "pol", "arb", "op", "linea"):
             mock.post(f"https://rpc.test/{slug}").mock(
                 side_effect=make_rpc_handler(slug, "0x3b9aca00", "0x77359400")
@@ -243,6 +248,7 @@ async def test_linea_estimate_gas_accepts_int_payload(client):
         raise AssertionError(f"Unexpected method {method}")
 
     with respx.mock(assert_all_called=False) as mock:
+        mock.route(host="test").pass_through()
         for slug in ("eth", "pol", "arb", "op", "avax"):
             mock.post(f"https://rpc.test/{slug}").mock(
                 side_effect=make_rpc_handler(slug, "0x3b9aca00", "0x77359400")

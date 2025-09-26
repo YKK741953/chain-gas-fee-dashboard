@@ -18,9 +18,10 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from api.app.main import app as fastapi_app
+from api.app import config
 from api.app.services import gas
-from api.app.services import rpc
 from api.app.services import pricing
+from api.app.services import rpc
 
 
 @pytest.fixture(autouse=True)
@@ -53,6 +54,12 @@ def _set_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("COINMARKETCAP_API_KEY", "test-key")
     monkeypatch.delenv("INFURA_PROJECT_ID", raising=False)
     monkeypatch.delenv("INFURA_PROJECT_SECRET", raising=False)
+
+    config.get_settings.cache_clear()
+    gas.get_settings.cache_clear()
+    pricing.get_settings.cache_clear()
+    gas.reset_gas_cache()
+    pricing.reset_pricing_cache()
 
 
 @pytest_asyncio.fixture()

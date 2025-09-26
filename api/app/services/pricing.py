@@ -19,6 +19,13 @@ _price_cache: TTLCache[tuple[str, tuple[str, ...]], dict[str, Decimal]] = TTLCac
 )
 
 
+def reset_pricing_cache() -> None:
+    """Reset cached settings and price cache (used in tests)."""
+    global _settings, _price_cache
+    _settings = get_settings()
+    _price_cache = TTLCache(maxsize=8, ttl=_settings.price_cache_ttl_seconds)
+
+
 async def get_price_quotes(
     client: httpx.AsyncClient,
     symbols: Iterable[str],
