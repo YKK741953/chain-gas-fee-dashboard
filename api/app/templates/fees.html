@@ -159,9 +159,9 @@
             <th>Gas Price (Gwei)</th>
             <th>ガス量</th>
             <th>手数料</th>
+            <th>法定手数料</th>
             <th>ERC20 ガス量</th>
             <th>ERC20 手数料</th>
-            <th>法定手数料</th>
             <th>モード</th>
             <th>ステータス</th>
           </tr>
@@ -186,6 +186,13 @@
               {% endif %}
             </td>
             <td>
+              {% if row.fiat_fee %}
+              {{ row.fiat_fee.formatted }} {{ row.fiat_fee.currency }}
+              {% else %}
+              —
+              {% endif %}
+            </td>
+            <td>
               {% if row.erc20 %}
               {{ row.erc20.gas_limit or '—' }}
               {% else %}
@@ -195,13 +202,6 @@
             <td>
               {% if row.erc20 and row.erc20.fee.formatted %}
               {{ row.erc20.fee.formatted }} {{ row.chain.symbol }}
-              {% else %}
-              —
-              {% endif %}
-            </td>
-            <td>
-              {% if row.fiat_fee %}
-              {{ row.fiat_fee.formatted }} {{ row.fiat_fee.currency }}
               {% else %}
               —
               {% endif %}

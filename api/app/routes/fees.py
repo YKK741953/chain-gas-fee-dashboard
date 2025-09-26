@@ -104,6 +104,7 @@ async def list_fees(
         for chain in chains
     ]
     results = await asyncio.gather(*jobs)
+    _ensure_erc20_shape(results, chains)
 
     raw_fiat = fiat or request.query_params.get("fiat")
     fiat_currency = raw_fiat.lower() if raw_fiat else None
@@ -165,3 +166,22 @@ async def list_fees(
         )
 
     return {"meta": meta, "data": results}
+
+
+def _ensure_erc20_shape(rows: list[dict[str, Any]], chains: list[ChainSettings]) -> None:
+    for row, chain in zip(rows, chains):
+        erc20 = row.get("erc20")
+        gas_limit = chain.erc20_gas_limit
+        if not erc20:
+            row["erc20"] = {
+                "gas_limit": gas_limit,
+                "fee": {"wei": None, "formatted": None},
+            }
+            continue
+        erc20.setdefault("gas_limit", gas_limit)
+        fee = erc20.get("fee")
+        if fee is None:
+            erc20["fee"] = {"wei": None, "formatted": None}
+        else:
+            fee.setdefault("wei", None)
+            fee.setdefault("formatted", None)
