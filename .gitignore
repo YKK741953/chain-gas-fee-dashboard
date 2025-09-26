@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.env
+.env.local
+.env.*.local
+
+# Node
+node_modules/
+web/node_modules/
+web/dist/
+web/coverage/
+
+# Logs
+*.log
+
+# pytest
+.pytest_cache/
+
+# Vite
+*.tsbuildinfo
+
+# Docker
+*.pid

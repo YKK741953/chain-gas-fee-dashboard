@@ -11,7 +11,7 @@
 
 ## Build, Test, and Development Commands
 - Backend bootstrap: `python -m venv .venv && source .venv/bin/activate && pip install -r api/requirements.txt`.
-- Start the API with `uvicorn api.app.main:app --reload`.
+- Start the API with `uvicorn api.app.main:app --reload --port 9000` (frontend proxy assumes 9000).
 - Frontend bootstrap from `web/`: `npm install` (or `pnpm install` when a lockfile exists) then `npm run dev`.
 - Use `docker compose up --build` after the compose file is committed to exercise `api`, `web`, and `nginx` together.
 
@@ -31,6 +31,6 @@
 - Highlight configuration changes (new env vars, cron jobs) and update both `README.md` and `.env.example` accordingly.
 
 ## Security & Configuration Tips
-- Keep Infura and CoinGecko credentials in `.env.local` or Docker secrets and log required keys in `doc/`.
+- Keep Infura credentials (`INFURA_PROJECT_ID`/`INFURA_PROJECT_SECRET`) and CoinGecko keys in `.env.local` or Docker secrets; log required keys in `doc/`.
 - Respect rate limits by polling ≥30 seconds and logging 429/timeouts to `dailyreport/`.
 - Run `pip-audit` and `npm audit` before each release; note unresolved advisories in the release ticket with mitigation steps.
