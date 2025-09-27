@@ -32,6 +32,19 @@ class ChainSettings(BaseModel):
         return self.rpc_env
 
 
+class BeefyVaultSettings(BaseModel):
+    key: str
+    display_name: str
+    chain_key: str
+    withdraw_gas_limit: int = Field(ge=21_000)
+    platform: str | None = None
+    token_pair: str | None = None
+    strategy: str | None = None
+    reference_tx: str | None = None
+    reference_observed_at: str | None = None
+    notes: str | None = None
+
+
 class AppSettings(BaseSettings):
     cache_ttl_seconds: int = Field(default=600, ge=5)
     chains_config_path: Path = Field(
@@ -49,6 +62,9 @@ class AppSettings(BaseSettings):
         default="https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest"
     )
     fee_history_reward_percentile: int = Field(default=50, ge=0, le=99)
+    beefy_vaults_config_path: Path = Field(
+        default=Path(__file__).resolve().parents[2] / "shared" / "beefy_vaults.json"
+    )
 
     model_config = {
         "env_file": ('.env.local', '.env'),
@@ -69,3 +85,13 @@ def get_settings() -> AppSettings:
 def get_chains() -> list[ChainSettings]:
     settings = get_settings()
     return settings.load_chains()
+
+
+@lru_cache(maxsize=1)
+def get_beefy_vaults() -> list[BeefyVaultSettings]:
+    settings = get_settings()
+    path = settings.beefy_vaults_config_path
+    if not path.exists():
+        return []
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    return [BeefyVaultSettings.model_validate(item) for item in raw]

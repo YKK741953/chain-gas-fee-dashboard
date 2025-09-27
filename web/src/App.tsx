@@ -1,4 +1,3 @@
-import { useMemo } from 'react';
 import FeeTable from './components/FeeTable';
 import { formatSince, formatTimestamp, formatMode } from './lib/format';
 import { useFeeData } from './state/useFeeData';
@@ -18,7 +17,6 @@ function App() {
     refresh,
   } = useFeeData();
 
-  const pollLabel = useMemo(() => `${pollIntervalMs / 1000}s`, [pollIntervalMs]);
   const preciseEnabled = meta?.precise_enabled ?? false;
   const lastUpdated = meta?.generated_at;
 

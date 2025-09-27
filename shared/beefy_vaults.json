@@ -1,0 +1,14 @@
+[
+  {
+    "key": "beefy-btc-b-wavax-clm",
+    "display_name": "BTC.b-WAVAX CLM Vault",
+    "platform": "Pharaoh",
+    "token_pair": "BTC.b/WAVAX",
+    "strategy": "CLM",
+    "chain_key": "avalanche",
+    "withdraw_gas_limit": 1626385,
+    "reference_tx": null,
+    "reference_observed_at": "2025-09-27",
+    "notes": "gasUsed 1,626,385 observed on 2025-09-27"
+  }
+]

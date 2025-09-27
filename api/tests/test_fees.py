@@ -98,6 +98,18 @@ async def test_fees_endpoint_returns_payload(client):
     assert first["erc20"]["fee"]["formatted"].startswith("0.000165")
     assert first["erc20"]["token_symbol"] == "WBTC"
     assert first["erc20_fiat_fee"] is None
+    lp_eth = first["lp_breaker"]
+    assert lp_eth is not None
+    assert lp_eth["gas_limit"] == 1_626_385
+    assert lp_eth["native_fee"]["formatted"].startswith("0.0048")
+    polygon_row = next(row for row in data if row["chain"]["key"] == "polygon")
+    assert polygon_row["lp_breaker"]["gas_limit"] == 1_626_385
+    avax_row = next(row for row in data if row["chain"]["key"] == "avalanche")
+    lp = avax_row["lp_breaker"]
+    assert lp is not None
+    assert lp["gas_limit"] == 1_626_385
+    assert lp["native_fee"]["formatted"].startswith("0.0048")
+    assert lp["price_symbol"] == "AVAX"
 
 
 @pytest.mark.asyncio
@@ -148,6 +160,10 @@ async def test_fees_html_view(client):
     assert "Gas Fee Snapshot" in response.text
     assert "法定通貨: JPY" in response.text
     assert "toggle" in response.text
+    assert "data-fiat-value=\"JPY\"" in response.text
+    assert "LP解体ガス量" in response.text
+    assert "LP解体ガス手数料" in response.text
+    assert "1,626,385" in response.text
 
 
 @pytest.mark.asyncio
@@ -320,6 +336,9 @@ async def test_fees_endpoint_with_fiat_currency(client):
     # Ensure fallback symbol uses ETH for arbitrum/optimism/linea
     arbitrum_row = next(row for row in payload["data"] if row["chain"]["key"] == "arbitrum")
     assert arbitrum_row["fiat_fee"]["price_symbol"] == "ETH"
+    avax_row = next(row for row in payload["data"] if row["chain"]["key"] == "avalanche")
+    lp = avax_row["lp_breaker"]
+    assert lp is not None and lp["fiat_fee"]["formatted"].startswith("0.14")
 
 
 @pytest.mark.asyncio
