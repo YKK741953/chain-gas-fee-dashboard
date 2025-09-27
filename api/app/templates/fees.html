@@ -59,14 +59,16 @@
         overflow: hidden;
         background: #161b22;
       }
-      .toggle a {
+      .toggle button {
         padding: 0.45rem 1.1rem;
         color: #c9d1d9;
-        text-decoration: none;
+        background: transparent;
+        border: none;
+        cursor: pointer;
         font-size: 0.85rem;
         transition: background 0.2s ease;
       }
-      .toggle a.active {
+      .toggle button.active {
         background: #1f6feb;
         color: #fff;
       }
@@ -119,6 +121,10 @@
         font-size: 0.85rem;
         color: #8b949e;
       }
+      .caption {
+        color: #8b949e;
+        font-size: 0.75rem;
+      }
     </style>
   </head>
   <body>
@@ -146,13 +152,16 @@
       <div class="controls">
         <a class="button" href="/fees/?format=html&amp;refresh=1{% if active_fiat %}&amp;fiat={{ active_fiat | lower }}{% endif %}">最新に更新</a>
         <a class="button" href="/fees/{% if active_fiat %}?fiat={{ active_fiat | lower }}{% endif %}">JSON で見る</a>
-        <div class="toggle">
-          <a class="{% if active_fiat == 'JPY' or not active_fiat %}active{% endif %}" href="/fees/?format=html&amp;fiat=jpy">JPY</a>
-          <a class="{% if active_fiat == 'USD' %}active{% endif %}" href="/fees/?format=html&amp;fiat=usd">USD</a>
+        {% if fiat_options %}
+        <div class="toggle" id="fiat-toggle">
+          {% for currency in fiat_options %}
+          <button type="button" data-fiat="{{ currency }}" class="{% if currency == (active_fiat or 'JPY') %}active{% endif %}">{{ currency }}</button>
+          {% endfor %}
         </div>
+        {% endif %}
       </div>
 
-      <table>
+      <table id="fee-table" data-active-fiat="{{ active_fiat or 'JPY' }}">
         <thead>
           <tr>
             <th>チェーン</th>
@@ -160,6 +169,8 @@
             <th>ガス量</th>
             <th>手数料</th>
             <th>法定手数料</th>
+            <th>LP解体ガス量</th>
+            <th>LP解体ガス手数料</th>
             <th>ERC20 ガス量</th>
             <th>ERC20 手数料</th>
             <th>ERC20 法定手数料</th>
@@ -186,9 +197,50 @@
               —
               {% endif %}
             </td>
+            {% set fiat_multi = row.get('fiat_multi') or {} %}
+            {% set fiat_options_local = fiat_options or ['JPY', 'USD'] %}
+            <td data-fiat-group>
+              {% if fiat_multi %}
+                {% for currency in fiat_options_local %}
+                  {% set fiat_data = fiat_multi.get(currency) %}
+                  <span data-fiat-value="{{ currency }}" {% if currency != (active_fiat or 'JPY') %}hidden{% endif %}>
+                  {% if fiat_data %}
+                    {{ fiat_data.formatted }} {{ fiat_data.currency }}
+                  {% else %}
+                    —
+                  {% endif %}
+                  </span>
+                {% endfor %}
+              {% else %}
+              —
+              {% endif %}
+            </td>
+            {% set lp = row.lp_breaker %}
             <td>
-              {% if row.fiat_fee %}
-              {{ row.fiat_fee.formatted }} {{ row.fiat_fee.currency }}
+              {% if lp and lp.gas_limit %}
+              {{ "{:,.0f}".format(lp.gas_limit) }}
+              {% else %}
+              —
+              {% endif %}
+            </td>
+            <td>
+              {% if lp %}
+                {% if lp.error %}
+                  <span class="badge error">{{ lp.error }}</span>
+                {% elif lp.native_fee %}
+                  {% set lp_fiat_multi = lp.get('fiat_multi') or {} %}
+                  {% for currency in fiat_options_local %}
+                    {% set lp_fiat_data = lp_fiat_multi.get(currency) %}
+                    <span data-fiat-value="{{ currency }}" {% if currency != (active_fiat or 'JPY') %}hidden{% endif %}>
+                      {{ lp.native_fee.formatted }} {{ row.chain.symbol }}
+                      {% if lp_fiat_data %}
+                      ( {{ lp_fiat_data.formatted }} {{ lp_fiat_data.currency }} )
+                      {% endif %}
+                    </span>
+                  {% endfor %}
+                {% else %}
+                  —
+                {% endif %}
               {% else %}
               —
               {% endif %}
@@ -207,23 +259,45 @@
               —
               {% endif %}
             </td>
-            <td>
-              {% if row.erc20_fiat_fee %}
-              {{ row.erc20_fiat_fee.formatted }} {{ row.erc20_fiat_fee.currency }}
+            {% set erc20_fiat_multi = row.get('erc20_fiat_multi') or {} %}
+            <td data-fiat-group>
+              {% if erc20_fiat_multi %}
+                {% for currency in fiat_options_local %}
+                  {% set erc20_fiat = erc20_fiat_multi.get(currency) %}
+                  <span data-fiat-value="{{ currency }}" {% if currency != (active_fiat or 'JPY') %}hidden{% endif %}>
+                    {% if erc20_fiat %}
+                    {{ erc20_fiat.formatted }} {{ erc20_fiat.currency }}
+                    {% else %}
+                    —
+                    {% endif %}
+                  </span>
+                {% endfor %}
               {% else %}
               —
               {% endif %}
             </td>
             <td>{{ row.mode or 'unknown' }}</td>
             <td>
+              {% set badges = [] %}
               {% if row.error %}
-              <span class="badge error">{{ row.error }}</span>
+                {% set _ = badges.append({"text": row.error, "class": "error"}) %}
               {% elif row.stale %}
-              <span class="badge warn">{{ row.notes or 'stale cache' }}</span>
+                {% set note_text = row.notes or 'stale cache' %}
+                {% set _ = badges.append({"text": note_text, "class": "warn"}) %}
               {% elif row.notes %}
-              <span class="badge">{{ row.notes }}</span>
+                {% set _ = badges.append({"text": row.notes, "class": ""}) %}
+              {% endif %}
+              {% if lp and lp.error %}
+                {% set _ = badges.append({"text": lp.error, "class": "error"}) %}
+              {% elif lp and lp.notes and not lp.native_fee %}
+                {% set _ = badges.append({"text": lp.notes, "class": ""}) %}
+              {% endif %}
+              {% if badges %}
+                {% for badge in badges %}
+                  <span class="badge{% if badge.class %} {{ badge.class }}{% endif %}">{{ badge.text }}</span>
+                {% endfor %}
               {% else %}
-              <span class="badge ok">OK</span>
+                <span class="badge ok">OK</span>
               {% endif %}
             </td>
           </tr>
@@ -238,5 +312,35 @@
         </p>
       </footer>
     </main>
+    <script>
+      (function () {
+        const toggle = document.getElementById('fiat-toggle');
+        const table = document.getElementById('fee-table');
+        if (!toggle || !table) {
+          return;
+        }
+
+        const applyFiat = (currency) => {
+          table.dataset.activeFiat = currency;
+          toggle.querySelectorAll('[data-fiat]').forEach((btn) => {
+            btn.classList.toggle('active', btn.dataset.fiat === currency);
+          });
+          document.querySelectorAll('[data-fiat-value]').forEach((node) => {
+            node.hidden = node.dataset.fiatValue !== currency;
+          });
+        };
+
+        toggle.addEventListener('click', (event) => {
+          const target = event.target.closest('[data-fiat]');
+          if (!target) {
+            return;
+          }
+          event.preventDefault();
+          applyFiat(target.dataset.fiat);
+        });
+
+        applyFiat(table.dataset.activeFiat || 'JPY');
+      })();
+    </script>
   </body>
 </html>

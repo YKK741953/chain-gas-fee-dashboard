@@ -19,9 +19,7 @@ if str(ROOT) not in sys.path:
 
 from api.app.main import app as fastapi_app
 from api.app import config
-from api.app.services import gas
-from api.app.services import pricing
-from api.app.services import rpc
+from api.app.services import beefy, gas, pricing, rpc
 
 
 @pytest.fixture(autouse=True)
@@ -29,10 +27,12 @@ def _clear_cache() -> Iterator[None]:
     gas._fee_cache.clear()
     gas._stale_cache.clear()
     pricing._price_cache.clear()
+    beefy.reset_beefy_cache()
     yield
     gas._fee_cache.clear()
     gas._stale_cache.clear()
     pricing._price_cache.clear()
+    beefy.reset_beefy_cache()
 
 
 @pytest.fixture(autouse=True)
@@ -56,8 +56,10 @@ def _set_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("INFURA_PROJECT_SECRET", raising=False)
 
     config.get_settings.cache_clear()
+    config.get_beefy_vaults.cache_clear()
     gas.get_settings.cache_clear()
     pricing.get_settings.cache_clear()
+    beefy.reset_beefy_cache()
     gas.reset_gas_cache()
     pricing.reset_pricing_cache()
 
