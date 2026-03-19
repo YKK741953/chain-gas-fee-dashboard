@@ -10,9 +10,10 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "allowSyntheticDefaultImports": true,
+    "noEmit": true,
     "strict": true,
     "jsx": "react-jsx",
-    "types": ["vitest", "vite/client"]
+    "types": ["vitest/globals", "vite/client"]
   },
   "include": ["src"]
 }

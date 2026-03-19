@@ -22,6 +22,16 @@ export interface FiatValue {
   price_symbol: string;
 }
 
+export interface RelativeIndex {
+  score: number;
+  scale_max: number;
+  label: string;
+  percentile: number;
+  window: string;
+  samples: number;
+  basis: string;
+}
+
 export interface FeeRow {
   chain: ChainInfo;
   gas_price?: GasPrice;
@@ -35,6 +45,8 @@ export interface FeeRow {
   fiat_price?: FiatValue | null;
   erc20_fiat_fee?: FiatValue | null;
   stale?: boolean;
+  relative_index?: RelativeIndex | null;
+  relative_index_status?: 'ok' | 'warming_up' | 'insufficient_data' | 'disabled';
   lp_breaker?: LpBreakerInfo | null;
   fiat_multi?: Record<string, FiatValue | null>;
   fiat_price_multi?: Record<string, FiatValue | null>;
@@ -46,6 +58,9 @@ export interface FeesResponseMeta {
   precise_enabled: boolean;
   cache_ttl_seconds: number;
   generated_at: number;
+  relative_index_enabled?: boolean;
+  relative_index_window?: string;
+  relative_index_basis?: string;
 }
 
 export interface FeesResponse {

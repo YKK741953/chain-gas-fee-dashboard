@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import json
+import time
 from typing import Callable
 from decimal import Decimal, ROUND_HALF_UP
 
 import pytest
 import respx
 from httpx import Response
+from api.app.services.history_store import get_history_store
 
 
 def build_client_headers():
@@ -77,6 +79,18 @@ def make_rpc_handler(chain_slug: str, base_fee_hex: str, priority_fee_hex: str) 
 
 @pytest.mark.asyncio
 async def test_fees_endpoint_returns_payload(client):
+    now = 1_800_000_000
+    store = get_history_store()
+    base_ts = now - (80 * 600)
+    for index in range(80):
+        for chain_key in ("ethereum", "polygon", "arbitrum", "optimism", "avalanche", "linea"):
+            store.insert_gas_price(
+                chain_key,
+                base_ts + index * 600,
+                (index + 1) * 1_000_000_000,
+                mode="standard",
+            )
+
     with respx.mock(assert_all_called=False) as mock:
         mock.route(host="test").pass_through()
         for slug in ("eth", "pol", "arb", "op", "avax", "linea"):
@@ -89,11 +103,13 @@ async def test_fees_endpoint_returns_payload(client):
     assert response.status_code == 200
     payload = response.json()
     assert payload["meta"]["precise_enabled"] is False
+    assert payload["meta"]["relative_index_enabled"] is True
     data = payload["data"]
     assert len(data) == 6
     first = data[0]
     assert first["gas_price"]["gwei"] == "3.0000"
     assert first["native_fee"]["formatted"].startswith("0.000063")
+    assert first["relative_index"]["basis"] == "gas_price_gwei"
     assert first["erc20"]["gas_limit"] == 55000
     assert first["erc20"]["fee"]["formatted"].startswith("0.000165")
     assert first["erc20"]["token_symbol"] == "WBTC"
@@ -110,6 +126,34 @@ async def test_fees_endpoint_returns_payload(client):
     assert lp["gas_limit"] == 1_626_385
     assert lp["native_fee"]["formatted"].startswith("0.0048")
     assert lp["price_symbol"] == "AVAX"
+
+
+@pytest.mark.asyncio
+async def test_fees_endpoint_returns_warming_up_relative_index(client):
+    store = get_history_store()
+    now = int(time.time())
+    for index in range(10):
+        store.insert_gas_price(
+            "ethereum",
+            now - index * 600,
+            1_000_000_000 + index,
+            mode="standard",
+        )
+
+    with respx.mock(assert_all_called=False) as mock:
+        mock.route(host="test").pass_through()
+        for slug in ("eth", "pol", "arb", "op", "avax", "linea"):
+            mock.post(f"https://rpc.test/{slug}").mock(
+                side_effect=make_rpc_handler(slug, "0x3b9aca00", "0x77359400")
+            )
+
+        response = await client.get("/fees/", headers=build_client_headers())
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    ethereum_row = next(row for row in data if row["chain"]["key"] == "ethereum")
+    assert ethereum_row["relative_index"] is None
+    assert ethereum_row["relative_index_status"] == "warming_up"
 
 
 @pytest.mark.asyncio
@@ -133,6 +177,18 @@ async def test_missing_env_returns_error(client, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_fees_html_view(client):
+    store = get_history_store()
+    now = 1_800_000_000
+    base_ts = now - (80 * 600)
+    for index in range(80):
+        for chain_key in ("ethereum", "polygon", "arbitrum", "optimism", "avalanche", "linea"):
+            store.insert_gas_price(
+                chain_key,
+                base_ts + index * 600,
+                (index + 1) * 1_000_000_000,
+                mode="standard",
+            )
+
     with respx.mock(assert_all_called=False) as mock:
         mock.route(host="test").pass_through()
         for slug in ("eth", "pol", "arb", "op", "avax", "linea"):
@@ -161,9 +217,12 @@ async def test_fees_html_view(client):
     assert "法定通貨: JPY" in response.text
     assert "toggle" in response.text
     assert "data-fiat-value=\"JPY\"" in response.text
+    assert "1W Relative" in response.text
     assert "LP解体ガス量" in response.text
     assert "LP解体ガス手数料" in response.text
     assert "1,626,385" in response.text
+    assert "かなり安い" in response.text
+    assert "過去7日比 上位" in response.text
 
 
 @pytest.mark.asyncio

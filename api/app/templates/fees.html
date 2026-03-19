@@ -138,6 +138,9 @@
         <span>更新: {{ meta.generated_at | datetime }}</span>
         <span>キャッシュ寿命: {{ meta.cache_ttl_seconds }} 秒</span>
         <span>精度モード: {{ '有効' if meta.precise_enabled else '無効' }}</span>
+        {% if meta.relative_index_enabled %}
+        <span>相対指数: {{ meta.relative_index_window }} / {{ meta.relative_index_basis }}</span>
+        {% endif %}
         {% if active_fiat %}
         <span>法定通貨: {{ active_fiat }}</span>
         {% endif %}
@@ -169,6 +172,7 @@
             <th>ガス量</th>
             <th>手数料</th>
             <th>法定手数料</th>
+            <th>1W Relative</th>
             <th>LP解体ガス量</th>
             <th>LP解体ガス手数料</th>
             <th>ERC20 ガス量</th>
@@ -213,6 +217,28 @@
                 {% endfor %}
               {% else %}
               —
+              {% endif %}
+            </td>
+            <td>
+              {% set relative = row.get('relative_index') %}
+              {% set relative_status = row.get('relative_index_status') %}
+              {% if relative %}
+                {% set relative_class = '' %}
+                {% if relative.score >= 9 %}
+                  {% set relative_class = 'error' %}
+                {% elif relative.score >= 7 %}
+                  {% set relative_class = 'warn' %}
+                {% elif relative.score <= 3 %}
+                  {% set relative_class = 'ok' %}
+                {% endif %}
+                <span class="badge{% if relative_class %} {{ relative_class }}{% endif %}">
+                  {{ relative.score }}/{{ relative.scale_max }} {{ relative.label }}
+                </span>
+                <div class="caption">過去7日比 上位{{ '%.0f'|format(relative.percentile * 100) }}%</div>
+              {% elif relative_status == 'warming_up' %}
+                <span class="badge">集計中</span>
+              {% else %}
+                —
               {% endif %}
             </td>
             {% set lp = row.lp_breaker %}

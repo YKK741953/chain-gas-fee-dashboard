@@ -65,6 +65,16 @@ class AppSettings(BaseSettings):
     beefy_vaults_config_path: Path = Field(
         default=Path(__file__).resolve().parents[2] / "shared" / "beefy_vaults.json"
     )
+    relative_index_enabled: bool = True
+    relative_index_background_sampler_enabled: bool = True
+    relative_index_window_hours: int = Field(default=24 * 7, ge=1)
+    relative_index_min_samples: int = Field(default=72, ge=1)
+    relative_index_warmup_hours: int = Field(default=24, ge=1)
+    relative_index_sample_interval_seconds: int = Field(default=600, ge=60)
+    relative_index_retention_days: int = Field(default=90, ge=7)
+    relative_index_db_path: Path = Field(
+        default=Path(__file__).resolve().parents[2] / "shared" / "history" / "gas_history.sqlite3"
+    )
 
     model_config = {
         "env_file": ('.env.local', '.env'),
