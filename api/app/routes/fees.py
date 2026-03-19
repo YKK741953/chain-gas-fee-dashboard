@@ -16,6 +16,7 @@ from ..config import ChainSettings, get_chains, get_settings
 from ..services.beefy import get_beefy_withdraw_fees
 from ..services.gas import get_chain_fee
 from ..services.pricing import PricingError, get_price_quotes
+from ..services.relative_index import build_relative_index
 
 router = APIRouter(prefix="/fees", tags=["fees"])
 
@@ -316,7 +317,23 @@ async def list_fees(
         "cache_ttl_seconds": settings.cache_ttl_seconds,
         "generated_at": int(time.time()),
         "refreshed": force_refresh,
+        "relative_index_enabled": settings.relative_index_enabled,
+        "relative_index_window": "7d",
+        "relative_index_basis": "gas_price_gwei",
     }
+
+    for row in results:
+        chain = row.get("chain") or {}
+        chain_key = chain.get("key")
+        gas_price = row.get("gas_price") or {}
+        gas_price_wei = gas_price.get("wei")
+        if not chain_key or not isinstance(gas_price_wei, int):
+            row["relative_index"] = None
+            continue
+        relative_index, status = build_relative_index(chain_key, gas_price_wei)
+        row["relative_index"] = relative_index
+        if status != "ok":
+            row["relative_index_status"] = status
 
     fiat_sequences: list[tuple[str, bool]] = []
     if fiat_currency:

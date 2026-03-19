@@ -8,6 +8,29 @@ interface Props {
 const defaultRenderMode = (mode?: string) => mode ?? 'unknown';
 
 function FeeTable({ rows, renderMode = defaultRenderMode }: Props) {
+  const renderRelativeIndex = (row: FeeRow) => {
+    if (row.relative_index) {
+      const tone =
+        row.relative_index.score >= 9
+          ? 'error'
+          : row.relative_index.score >= 7
+            ? 'warn'
+            : row.relative_index.score <= 3
+              ? 'ok'
+              : '';
+      const className = tone ? `badge ${tone}` : 'badge';
+      return (
+        <span className={className}>
+          {row.relative_index.score}/{row.relative_index.scale_max} {row.relative_index.label}
+        </span>
+      );
+    }
+    if (row.relative_index_status === 'warming_up') {
+      return <span className="badge">集計中</span>;
+    }
+    return '—';
+  };
+
   return (
     <table>
       <thead>
@@ -16,6 +39,7 @@ function FeeTable({ rows, renderMode = defaultRenderMode }: Props) {
           <th>Gas Price (Gwei)</th>
           <th>Gas Limit</th>
           <th>Native Fee</th>
+          <th>1W Relative</th>
           <th>LP解体ガス量</th>
           <th>LP解体ガス手数料</th>
           <th>Mode</th>
@@ -102,6 +126,7 @@ function FeeTable({ rows, renderMode = defaultRenderMode }: Props) {
                   ? `${row.native_fee.formatted} ${row.chain.symbol}`
                   : '—'}
               </td>
+              <td>{renderRelativeIndex(row)}</td>
               <td>{lpGasLimit}</td>
               <td>{lpFeeContent}</td>
               <td>{renderMode(row.mode)}</td>

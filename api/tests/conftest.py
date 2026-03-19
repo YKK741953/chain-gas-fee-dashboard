@@ -20,6 +20,7 @@ if str(ROOT) not in sys.path:
 from api.app.main import app as fastapi_app
 from api.app import config
 from api.app.services import beefy, gas, pricing, rpc
+from api.app.services.history_store import reset_history_store
 
 
 @pytest.fixture(autouse=True)
@@ -28,11 +29,13 @@ def _clear_cache() -> Iterator[None]:
     gas._stale_cache.clear()
     pricing._price_cache.clear()
     beefy.reset_beefy_cache()
+    reset_history_store()
     yield
     gas._fee_cache.clear()
     gas._stale_cache.clear()
     pricing._price_cache.clear()
     beefy.reset_beefy_cache()
+    reset_history_store()
 
 
 @pytest.fixture(autouse=True)
@@ -44,7 +47,7 @@ def _fast_sleep(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture(autouse=True)
-def _set_env(monkeypatch: pytest.MonkeyPatch) -> None:
+def _set_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setenv("RPC_ETHEREUM_URL", "https://rpc.test/eth")
     monkeypatch.setenv("RPC_POLYGON_URL", "https://rpc.test/pol")
     monkeypatch.setenv("RPC_ARBITRUM_URL", "https://rpc.test/arb")
@@ -52,6 +55,8 @@ def _set_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("RPC_AVALANCHE_URL", "https://rpc.test/avax")
     monkeypatch.setenv("RPC_LINEA_URL", "https://rpc.test/linea")
     monkeypatch.setenv("COINMARKETCAP_API_KEY", "test-key")
+    monkeypatch.setenv("RELATIVE_INDEX_DB_PATH", str(tmp_path / "gas_history.sqlite3"))
+    monkeypatch.setenv("RELATIVE_INDEX_BACKGROUND_SAMPLER_ENABLED", "false")
     monkeypatch.delenv("INFURA_PROJECT_ID", raising=False)
     monkeypatch.delenv("INFURA_PROJECT_SECRET", raising=False)
 
@@ -62,6 +67,7 @@ def _set_env(monkeypatch: pytest.MonkeyPatch) -> None:
     beefy.reset_beefy_cache()
     gas.reset_gas_cache()
     pricing.reset_pricing_cache()
+    reset_history_store()
 
 
 @pytest_asyncio.fixture()

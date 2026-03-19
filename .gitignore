@@ -23,3 +23,6 @@ web/coverage/
 
 # Docker
 *.pid
+
+# Runtime data
+shared/history/*.sqlite3

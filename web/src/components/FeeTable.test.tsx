@@ -19,6 +19,15 @@ const sampleRows: FeeRow[] = [
       wei: 63_000_000_000_000,
       formatted: '0.00006300',
     },
+    relative_index: {
+      score: 8,
+      scale_max: 10,
+      label: '高い',
+      percentile: 0.82,
+      window: '7d',
+      samples: 180,
+      basis: 'gas_price_gwei',
+    },
     mode: 'standard',
     notes: 'baseFee+priority',
     fiat_multi: {
@@ -63,6 +72,7 @@ const sampleRows: FeeRow[] = [
       symbol: 'ETH',
       chain_id: 10,
     },
+    relative_index_status: 'warming_up',
     error: 'missing RPC url',
   },
 ];
@@ -76,7 +86,9 @@ test('renders fee rows and error badges', () => {
   expect(screen.getByText('baseFee+priority')).toBeInTheDocument();
   expect(screen.getByText('1,626,385')).toBeInTheDocument();
   expect(screen.getByText('0.00487915 ETH (0.1460 USD)')).toBeInTheDocument();
+  expect(screen.getByText('8/10 高い')).toBeInTheDocument();
 
   expect(screen.getByText('OP Mainnet')).toBeInTheDocument();
+  expect(screen.getByText('集計中')).toBeInTheDocument();
   expect(screen.getByText('missing RPC url')).toHaveClass('badge');
 });
